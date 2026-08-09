@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "dgSpecHash": "nuYT2qddmZ8=",
+  "success": true,
+  "projectFilePath": "C:\\Dev\\HealthTechDeviceApi\\HealthTechDeviceApi.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\anneb\\.nuget\\packages\\microsoft.aspnetcore.openapi\\9.0.18\\microsoft.aspnetcore.openapi.9.0.18.nupkg.sha512",
+    "C:\\Users\\anneb\\.nuget\\packages\\microsoft.openapi\\1.6.17\\microsoft.openapi.1.6.17.nupkg.sha512"
+  ],
+  "logs": []
+}
