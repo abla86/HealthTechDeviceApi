@@ -16,6 +16,8 @@ REST API for managing healthcare technology devices, built with C# and ASP.NET C
 - JSON responses
 - OpenAPI support
 - Automated API tests with xUnit
+- GitHub Actions continuous integration
+- Docker containerization
 - Sample healthcare device data
 
 ## Technology Stack
@@ -24,10 +26,12 @@ REST API for managing healthcare technology devices, built with C# and ASP.NET C
 - .NET 9
 - ASP.NET Core
 - Minimal APIs
-- OpenAPI
 - REST
+- OpenAPI
 - xUnit
 - Microsoft.AspNetCore.Mvc.Testing
+- GitHub Actions
+- Docker
 
 ## API Endpoints
 
@@ -45,18 +49,51 @@ REST API for managing healthcare technology devices, built with C# and ASP.NET C
 | PUT | /devices/{id} | Update device |
 | DELETE | /devices/{id} | Delete device |
 
+## Automated Testing
+
+The API includes an automated xUnit integration test suite.
+
+Current status: **7/7 tests passing**.
+
+Run tests:
+
+    dotnet test .\HealthTechDeviceApi.Tests\HealthTechDeviceApi.Tests.csproj
+
+## Continuous Integration
+
+GitHub Actions automatically restores dependencies, builds the API in Release configuration and runs the automated test suite on pushes and pull requests to `main`.
+
+The CI workflow has been successfully verified on GitHub.
+
+## Docker
+
+The API is containerized using a multi-stage Docker build with the official .NET 9 SDK and ASP.NET Core runtime images.
+
+Build the image:
+
+    docker build -t healthtech-device-api:latest .
+
+Run the container:
+
+    docker run --rm -p 8080:8080 healthtech-device-api:latest
+
+Verified container endpoints:
+
+- `GET /health` - healthy
+- `GET /devices/stats` - verified
+
+Verified sample statistics:
+
+- Total devices: 3
+- Online: 2
+- Offline: 1
+- Maintenance: 0
+
 ## Run Locally
 
-dotnet restore
-dotnet run
-
-## Run Tests
-
-dotnet test .\HealthTechDeviceApi.Tests\HealthTechDeviceApi.Tests.csproj
-
-Current automated test suite: 7 tests.
+    dotnet restore
+    dotnet run
 
 ## Author
 
 Anne Beth Andersen
-
