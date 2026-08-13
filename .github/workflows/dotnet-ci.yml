@@ -1,0 +1,36 @@
+﻿name: .NET CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Restore API
+        run: dotnet restore HealthTechDeviceApi.csproj
+
+      - name: Restore tests
+        run: dotnet restore HealthTechDeviceApi.Tests/HealthTechDeviceApi.Tests.csproj
+
+      - name: Build API
+        run: dotnet build HealthTechDeviceApi.csproj --configuration Release --no-restore
+
+      - name: Run automated tests
+        run: dotnet test HealthTechDeviceApi.Tests/HealthTechDeviceApi.Tests.csproj --configuration Release --no-restore --verbosity normal
