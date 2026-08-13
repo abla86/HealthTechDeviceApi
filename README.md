@@ -17,6 +17,9 @@ REST API for managing healthcare technology devices, built with C# and ASP.NET C
 - OpenAPI support
 - Automated API tests with xUnit
 - GitHub Actions continuous integration
+- Docker image build and runtime verification in CI
+- CodeQL security scanning
+- Dependabot dependency monitoring
 - Docker containerization
 - Sample healthcare device data
 
@@ -63,7 +66,13 @@ Run tests:
 
 GitHub Actions automatically restores dependencies, builds the API in Release configuration and runs the automated test suite on pushes and pull requests to `main`.
 
-The CI workflow has been successfully verified on GitHub.
+The CI workflows have been successfully verified on GitHub.
+
+Verified automation:
+- .NET build and 7/7 automated tests
+- Docker image build and container endpoint verification
+- CodeQL static security analysis
+- Dependabot monitoring for NuGet packages and GitHub Actions
 
 ## Docker
 
@@ -97,3 +106,4 @@ Verified sample statistics:
 ## Author
 
 Anne Beth Andersen
+
