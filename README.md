@@ -1,4 +1,6 @@
-# HealthTech Device API
+﻿# HealthTech Device API
+
+[![.NET CI](https://github.com/abla86/HealthTechDeviceApi/actions/workflows/dotnet-ci.yml/badge.svg)](https://github.com/abla86/HealthTechDeviceApi/actions/workflows/dotnet-ci.yml)
 
 REST API for managing healthcare technology devices, built with C# and ASP.NET Core.
 
@@ -57,3 +59,4 @@ Current automated test suite: 7 tests.
 ## Author
 
 Anne Beth Andersen
+
