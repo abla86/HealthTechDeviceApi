@@ -1,17 +1,12 @@
-﻿# Build stage
-FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
+﻿FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /src
 
 COPY HealthTechDeviceApi.csproj ./
 RUN dotnet restore HealthTechDeviceApi.csproj
 
 COPY . .
-RUN dotnet publish HealthTechDeviceApi.csproj `
-    -c Release `
-    -o /app/publish `
-    --no-restore
+RUN dotnet publish HealthTechDeviceApi.csproj -c Release -o /app/publish --no-restore
 
-# Runtime stage
 FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS final
 WORKDIR /app
 
