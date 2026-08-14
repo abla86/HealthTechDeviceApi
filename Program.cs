@@ -1,3 +1,5 @@
+const long MaxDicomUploadBytes = 5 * 1024 * 1024;
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddOpenApi();
@@ -15,7 +17,7 @@ if (app.Environment.IsDevelopment())
 app.MapGet("/", () => Results.Ok(new
 {
     name = "HealthTech Device API",
-    version = "1.3.0",
+    version = "1.4.0",
     status = "running"
 }));
 
@@ -120,6 +122,67 @@ app.MapGet("/dicom/synthetic", (IDicomFileService service) =>
         artifact.Content,
         artifact.ContentType,
         artifact.FileName);
+});
+
+app.MapPost("/dicom/inspect", async (
+    HttpRequest request,
+    IDicomFileService service,
+    CancellationToken cancellationToken) =>
+{
+    if (request.ContentType?.StartsWith(
+            "application/dicom",
+            StringComparison.OrdinalIgnoreCase) != true)
+    {
+        return Results.StatusCode(StatusCodes.Status415UnsupportedMediaType);
+    }
+
+    if (request.ContentLength is > MaxDicomUploadBytes)
+    {
+        return Results.StatusCode(StatusCodes.Status413PayloadTooLarge);
+    }
+
+    using var buffer = new MemoryStream();
+    var chunk = new byte[81920];
+    long total = 0;
+
+    while (true)
+    {
+        var read = await request.Body.ReadAsync(chunk, cancellationToken);
+        if (read == 0)
+        {
+            break;
+        }
+
+        total += read;
+        if (total > MaxDicomUploadBytes)
+        {
+            return Results.StatusCode(StatusCodes.Status413PayloadTooLarge);
+        }
+
+        await buffer.WriteAsync(chunk.AsMemory(0, read), cancellationToken);
+    }
+
+    if (total == 0)
+    {
+        return Results.BadRequest(new
+        {
+            message = "A DICOM request body is required."
+        });
+    }
+
+    buffer.Position = 0;
+
+    try
+    {
+        return Results.Ok(service.Inspect(buffer));
+    }
+    catch (FellowOakDicom.DicomFileException)
+    {
+        return Results.BadRequest(new
+        {
+            message = "The request body is not a readable DICOM file."
+        });
+    }
 });
 
 app.Run();
