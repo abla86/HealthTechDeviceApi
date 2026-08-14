@@ -18,8 +18,13 @@ REST API for healthcare-technology device management and secure medical-imaging 
 - Generated Study, Series and SOP Instance UIDs
 - Explicit synthetic identity and de-identification markers
 - DICOM metadata and file-download endpoints
+- Bounded `application/dicom` metadata inspection endpoint
+- 5 MiB streaming request limit for DICOM inspection
+- Large DICOM values skipped during inspection
+- Allow-listed inspection response without patient-name or patient-ID values
+- Generic handling of unreadable DICOM input
 - Automated API and application-service tests with xUnit
-- Automated tests for generated DICOM structure and synthetic metadata
+- Automated tests for generated DICOM structure, synthetic metadata and inspection behaviour
 - GitHub Actions continuous integration
 - Docker image build and runtime verification in CI
 - CodeQL security scanning
@@ -39,20 +44,23 @@ The design keeps HTTP concerns, business rules and infrastructure dependencies s
 
 ## Secure DICOM development track
 
-The first DICOM implementation is now present. It creates a synthetic DICOM Part 10 file and never requires real patient data.
+The current DICOM implementation creates a synthetic DICOM Part 10 file and can inspect an uploaded DICOM request body without returning patient identity values.
 
 Current DICOM functionality:
 
 - `fo-dicom` 5.2.6
-- synthetic Patient ID and Patient Name
+- synthetic Patient ID and Patient Name for generated demonstration files
 - `Patient Identity Removed = YES`
 - de-identification-method marker
 - generated DICOM UIDs
 - Secondary Capture SOP Class
 - `application/dicom` download response
-- automated checks for the Part 10 `DICM` signature
+- bounded raw `application/dicom` inspection
+- `FileReadOption.SkipLargeTags` during inspection
+- allow-listed output: modality, SOP Class UID, identity-presence flag, de-identification flag and partial-read status
+- automated checks for the Part 10 `DICM` signature and inspection behaviour
 
-The next DICOM stage is safe metadata inspection of uploaded files with strict validation and size limits. SQL persistence, authentication/authorization, threat modelling, secure networking and Azure deployment remain planned and are not claimed as implemented.
+SQL persistence, authentication/authorization, threat modelling, secure networking and Azure deployment remain planned and are not claimed as implemented.
 
 See `docs/SECURE_DICOM_ROADMAP.md` and `SECURITY.md`.
 
@@ -84,6 +92,9 @@ See `docs/SECURE_DICOM_ROADMAP.md` and `SECURITY.md`.
 | DELETE | /devices/{id} | Delete device |
 | GET | /dicom/synthetic/metadata | Return metadata for a newly generated synthetic DICOM study |
 | GET | /dicom/synthetic | Generate and download a synthetic DICOM Part 10 file |
+| POST | /dicom/inspect | Inspect an `application/dicom` request body using bounded, allow-listed metadata extraction |
+
+`POST /dicom/inspect` accepts a raw `application/dicom` body up to 5 MiB. It does not return Patient Name or Patient ID values.
 
 ## Automated Testing
 
