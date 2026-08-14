@@ -1,8 +1,8 @@
-using System.ComponentModel.DataAnnotations;
-
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddOpenApi();
+builder.Services.AddSingleton<IDeviceRepository, InMemoryDeviceRepository>();
+builder.Services.AddSingleton<DeviceService>();
 
 var app = builder.Build();
 
@@ -11,24 +11,10 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
-var devices = new List<Device>
-{
-    new(1, "Blood Pressure Monitor", "Vital Signs", "Online", "Home Care"),
-    new(2, "Pulse Oximeter", "Vital Signs", "Online", "Home Care"),
-    new(3, "Medication Dispenser", "Medication", "Offline", "Patient Home")
-};
-
-var validStatuses = new[]
-{
-    "Online",
-    "Offline",
-    "Maintenance"
-};
-
 app.MapGet("/", () => Results.Ok(new
 {
     name = "HealthTech Device API",
-    version = "1.1.0",
+    version = "1.2.0",
     status = "running"
 }));
 
@@ -39,69 +25,22 @@ app.MapGet("/health", () => Results.Ok(new
 }));
 
 app.MapGet("/devices", (
+    DeviceService service,
     string? status,
     string? type,
     string? location) =>
 {
-    IEnumerable<Device> result = devices;
-
-    if (!string.IsNullOrWhiteSpace(status))
-    {
-        result = result.Where(d =>
-            d.Status.Equals(
-                status,
-                StringComparison.OrdinalIgnoreCase));
-    }
-
-    if (!string.IsNullOrWhiteSpace(type))
-    {
-        result = result.Where(d =>
-            d.Type.Equals(
-                type,
-                StringComparison.OrdinalIgnoreCase));
-    }
-
-    if (!string.IsNullOrWhiteSpace(location))
-    {
-        result = result.Where(d =>
-            d.Location.Equals(
-                location,
-                StringComparison.OrdinalIgnoreCase));
-    }
-
-    return Results.Ok(result);
+    return Results.Ok(service.GetDevices(status, type, location));
 });
 
-app.MapGet("/devices/stats", () =>
+app.MapGet("/devices/stats", (DeviceService service) =>
 {
-    var total = devices.Count;
-    var online = devices.Count(d =>
-        d.Status.Equals(
-            "Online",
-            StringComparison.OrdinalIgnoreCase));
-
-    var offline = devices.Count(d =>
-        d.Status.Equals(
-            "Offline",
-            StringComparison.OrdinalIgnoreCase));
-
-    var maintenance = devices.Count(d =>
-        d.Status.Equals(
-            "Maintenance",
-            StringComparison.OrdinalIgnoreCase));
-
-    return Results.Ok(new
-    {
-        total,
-        online,
-        offline,
-        maintenance
-    });
+    return Results.Ok(service.GetStats());
 });
 
-app.MapGet("/devices/{id:int}", (int id) =>
+app.MapGet("/devices/{id:int}", (int id, DeviceService service) =>
 {
-    var device = devices.FirstOrDefault(d => d.Id == id);
+    var device = service.GetDevice(id);
 
     return device is null
         ? Results.NotFound(new
@@ -111,33 +50,19 @@ app.MapGet("/devices/{id:int}", (int id) =>
         : Results.Ok(device);
 });
 
-app.MapPost("/devices", (CreateDevice request) =>
+app.MapPost("/devices", (CreateDevice request, DeviceService service) =>
 {
-    var validationError = ValidateCreateRequest(
-        request,
-        validStatuses);
+    var result = service.Create(request);
 
-    if (validationError is not null)
+    if (result.Error is not null)
     {
         return Results.BadRequest(new
         {
-            message = validationError
+            message = result.Error
         });
     }
 
-    var nextId = devices.Count == 0
-        ? 1
-        : devices.Max(d => d.Id) + 1;
-
-    var device = new Device(
-        nextId,
-        request.Name.Trim(),
-        request.Type.Trim(),
-        NormalizeStatus(request.Status),
-        request.Location.Trim()
-    );
-
-    devices.Add(device);
+    var device = result.Device!;
 
     return Results.Created(
         $"/devices/{device.Id}",
@@ -146,11 +71,12 @@ app.MapPost("/devices", (CreateDevice request) =>
 
 app.MapPut("/devices/{id:int}", (
     int id,
-    UpdateDevice request) =>
+    UpdateDevice request,
+    DeviceService service) =>
 {
-    var index = devices.FindIndex(d => d.Id == id);
+    var result = service.Update(id, request);
 
-    if (index == -1)
+    if (result.NotFound)
     {
         return Results.NotFound(new
         {
@@ -158,143 +84,28 @@ app.MapPut("/devices/{id:int}", (
         });
     }
 
-    var validationError = ValidateUpdateRequest(
-        request,
-        validStatuses);
-
-    if (validationError is not null)
+    if (result.Error is not null)
     {
         return Results.BadRequest(new
         {
-            message = validationError
+            message = result.Error
         });
     }
 
-    var current = devices[index];
-
-    var updated = current with
-    {
-        Name = request.Name?.Trim() ?? current.Name,
-        Type = request.Type?.Trim() ?? current.Type,
-        Status = request.Status is null
-            ? current.Status
-            : NormalizeStatus(request.Status),
-        Location = request.Location?.Trim() ?? current.Location
-    };
-
-    devices[index] = updated;
-
-    return Results.Ok(updated);
+    return Results.Ok(result.Device);
 });
 
-app.MapDelete("/devices/{id:int}", (int id) =>
+app.MapDelete("/devices/{id:int}", (int id, DeviceService service) =>
 {
-    var device = devices.FirstOrDefault(d => d.Id == id);
-
-    if (device is null)
-    {
-        return Results.NotFound(new
+    return service.Delete(id)
+        ? Results.NoContent()
+        : Results.NotFound(new
         {
             message = $"Device {id} was not found."
         });
-    }
-
-    devices.Remove(device);
-
-    return Results.NoContent();
 });
 
 app.Run();
-
-static string? ValidateCreateRequest(
-    CreateDevice request,
-    IReadOnlyCollection<string> validStatuses)
-{
-    if (string.IsNullOrWhiteSpace(request.Name) ||
-        string.IsNullOrWhiteSpace(request.Type) ||
-        string.IsNullOrWhiteSpace(request.Status) ||
-        string.IsNullOrWhiteSpace(request.Location))
-    {
-        return "Name, type, status and location are required.";
-    }
-
-    if (!validStatuses.Any(status =>
-        status.Equals(
-            request.Status,
-            StringComparison.OrdinalIgnoreCase)))
-    {
-        return "Status must be Online, Offline or Maintenance.";
-    }
-
-    return null;
-}
-
-static string? ValidateUpdateRequest(
-    UpdateDevice request,
-    IReadOnlyCollection<string> validStatuses)
-{
-    if (request.Name is not null &&
-        string.IsNullOrWhiteSpace(request.Name))
-    {
-        return "Name cannot be empty.";
-    }
-
-    if (request.Type is not null &&
-        string.IsNullOrWhiteSpace(request.Type))
-    {
-        return "Type cannot be empty.";
-    }
-
-    if (request.Location is not null &&
-        string.IsNullOrWhiteSpace(request.Location))
-    {
-        return "Location cannot be empty.";
-    }
-
-    if (request.Status is not null &&
-        !validStatuses.Any(status =>
-            status.Equals(
-                request.Status,
-                StringComparison.OrdinalIgnoreCase)))
-    {
-        return "Status must be Online, Offline or Maintenance.";
-    }
-
-    return null;
-}
-
-static string NormalizeStatus(string status)
-{
-    return status.Trim().ToLowerInvariant() switch
-    {
-        "online" => "Online",
-        "offline" => "Offline",
-        "maintenance" => "Maintenance",
-        _ => status.Trim()
-    };
-}
-
-public record Device(
-    int Id,
-    string Name,
-    string Type,
-    string Status,
-    string Location
-);
-
-public record CreateDevice(
-    [Required] string Name,
-    [Required] string Type,
-    [Required] string Status,
-    [Required] string Location
-);
-
-public record UpdateDevice(
-    string? Name,
-    string? Type,
-    string? Status,
-    string? Location
-);
 
 public partial class Program
 {
