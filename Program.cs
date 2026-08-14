@@ -1,3 +1,7 @@
+using System.Security.Cryptography;
+using System.Text;
+using Microsoft.EntityFrameworkCore;
+
 const long MaxDicomUploadBytes = 5 * 1024 * 1024;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -7,7 +11,29 @@ builder.Services.AddSingleton<IDeviceRepository, InMemoryDeviceRepository>();
 builder.Services.AddSingleton<DeviceService>();
 builder.Services.AddSingleton<IDicomFileService, FoDicomFileService>();
 
+var connectionString = builder.Configuration.GetConnectionString("HealthTech")
+    ?? "Data Source=healthtech.db";
+
+builder.Services.AddDbContext<HealthTechDbContext>(options =>
+    options.UseSqlite(connectionString));
+builder.Services.AddScoped<IDicomMetadataRepository, EfDicomMetadataRepository>();
+
 var app = builder.Build();
+
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<HealthTechDbContext>();
+    db.Database.EnsureCreated();
+}
+
+app.Use(async (context, next) =>
+{
+    context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+    context.Response.Headers["X-Frame-Options"] = "DENY";
+    context.Response.Headers["Referrer-Policy"] = "no-referrer";
+    context.Response.Headers["Cache-Control"] = "no-store";
+    await next();
+});
 
 if (app.Environment.IsDevelopment())
 {
@@ -17,15 +43,21 @@ if (app.Environment.IsDevelopment())
 app.MapGet("/", () => Results.Ok(new
 {
     name = "HealthTech Device API",
-    version = "1.4.0",
+    version = "1.5.0",
     status = "running"
 }));
 
-app.MapGet("/health", () => Results.Ok(new
+app.MapGet("/health", async (HealthTechDbContext db, CancellationToken cancellationToken) =>
 {
-    status = "healthy",
-    timestamp = DateTime.UtcNow
-}));
+    var databaseAvailable = await db.Database.CanConnectAsync(cancellationToken);
+
+    return Results.Ok(new
+    {
+        status = databaseAvailable ? "healthy" : "degraded",
+        database = databaseAvailable ? "available" : "unavailable",
+        timestamp = DateTime.UtcNow
+    });
+});
 
 app.MapGet("/devices", (
     DeviceService service,
@@ -46,10 +78,7 @@ app.MapGet("/devices/{id:int}", (int id, DeviceService service) =>
     var device = service.GetDevice(id);
 
     return device is null
-        ? Results.NotFound(new
-        {
-            message = $"Device {id} was not found."
-        })
+        ? Results.NotFound(new { message = $"Device {id} was not found." })
         : Results.Ok(device);
 });
 
@@ -59,40 +88,25 @@ app.MapPost("/devices", (CreateDevice request, DeviceService service) =>
 
     if (result.Error is not null)
     {
-        return Results.BadRequest(new
-        {
-            message = result.Error
-        });
+        return Results.BadRequest(new { message = result.Error });
     }
 
     var device = result.Device!;
-
-    return Results.Created(
-        $"/devices/{device.Id}",
-        device);
+    return Results.Created($"/devices/{device.Id}", device);
 });
 
-app.MapPut("/devices/{id:int}", (
-    int id,
-    UpdateDevice request,
-    DeviceService service) =>
+app.MapPut("/devices/{id:int}", (int id, UpdateDevice request, DeviceService service) =>
 {
     var result = service.Update(id, request);
 
     if (result.NotFound)
     {
-        return Results.NotFound(new
-        {
-            message = $"Device {id} was not found."
-        });
+        return Results.NotFound(new { message = $"Device {id} was not found." });
     }
 
     if (result.Error is not null)
     {
-        return Results.BadRequest(new
-        {
-            message = result.Error
-        });
+        return Results.BadRequest(new { message = result.Error });
     }
 
     return Results.Ok(result.Device);
@@ -102,10 +116,7 @@ app.MapDelete("/devices/{id:int}", (int id, DeviceService service) =>
 {
     return service.Delete(id)
         ? Results.NoContent()
-        : Results.NotFound(new
-        {
-            message = $"Device {id} was not found."
-        });
+        : Results.NotFound(new { message = $"Device {id} was not found." });
 });
 
 app.MapGet("/dicom/synthetic/metadata", (IDicomFileService service) =>
@@ -127,17 +138,20 @@ app.MapGet("/dicom/synthetic", (IDicomFileService service) =>
 app.MapPost("/dicom/inspect", async (
     HttpRequest request,
     IDicomFileService service,
+    IDicomMetadataRepository repository,
     CancellationToken cancellationToken) =>
 {
     if (request.ContentType?.StartsWith(
             "application/dicom",
             StringComparison.OrdinalIgnoreCase) != true)
     {
+        await repository.AddAuditEventAsync("dicom.inspect", "unsupported-media-type", cancellationToken);
         return Results.StatusCode(StatusCodes.Status415UnsupportedMediaType);
     }
 
     if (request.ContentLength is > MaxDicomUploadBytes)
     {
+        await repository.AddAuditEventAsync("dicom.inspect", "payload-too-large", cancellationToken);
         return Results.StatusCode(StatusCodes.Status413PayloadTooLarge);
     }
 
@@ -156,6 +170,7 @@ app.MapPost("/dicom/inspect", async (
         total += read;
         if (total > MaxDicomUploadBytes)
         {
+            await repository.AddAuditEventAsync("dicom.inspect", "payload-too-large", cancellationToken);
             return Results.StatusCode(StatusCodes.Status413PayloadTooLarge);
         }
 
@@ -164,28 +179,69 @@ app.MapPost("/dicom/inspect", async (
 
     if (total == 0)
     {
-        return Results.BadRequest(new
-        {
-            message = "A DICOM request body is required."
-        });
+        await repository.AddAuditEventAsync("dicom.inspect", "empty-body", cancellationToken);
+        return Results.BadRequest(new { message = "A DICOM request body is required." });
     }
 
     buffer.Position = 0;
 
     try
     {
-        return Results.Ok(service.Inspect(buffer));
+        var inspection = service.Inspect(buffer);
+        await repository.AddInspectionAsync(inspection, cancellationToken);
+        await repository.AddAuditEventAsync("dicom.inspect", "success", cancellationToken);
+        return Results.Ok(inspection);
     }
     catch (FellowOakDicom.DicomFileException)
     {
-        return Results.BadRequest(new
-        {
-            message = "The request body is not a readable DICOM file."
-        });
+        await repository.AddAuditEventAsync("dicom.inspect", "invalid-dicom", cancellationToken);
+        return Results.BadRequest(new { message = "The request body is not a readable DICOM file." });
     }
 });
 
+app.MapGet("/dicom/admin/inspections", async (
+    HttpRequest request,
+    IConfiguration configuration,
+    IDicomMetadataRepository repository,
+    int? take,
+    CancellationToken cancellationToken) =>
+{
+    if (!IsAuthorized(request, configuration))
+    {
+        await repository.AddAuditEventAsync("dicom.admin.inspections", "unauthorized", cancellationToken);
+        return Results.Unauthorized();
+    }
+
+    await repository.AddAuditEventAsync("dicom.admin.inspections", "success", cancellationToken);
+    var records = await repository.GetRecentAsync(take ?? 25, cancellationToken);
+    return Results.Ok(records);
+});
+
 app.Run();
+
+static bool IsAuthorized(HttpRequest request, IConfiguration configuration)
+{
+    var configuredKey = configuration["Security:ApiKey"];
+    if (string.IsNullOrWhiteSpace(configuredKey))
+    {
+        return false;
+    }
+
+    if (!request.Headers.TryGetValue("X-API-Key", out var suppliedValues))
+    {
+        return false;
+    }
+
+    var suppliedKey = suppliedValues.ToString();
+    if (string.IsNullOrWhiteSpace(suppliedKey))
+    {
+        return false;
+    }
+
+    var configuredBytes = SHA256.HashData(Encoding.UTF8.GetBytes(configuredKey));
+    var suppliedBytes = SHA256.HashData(Encoding.UTF8.GetBytes(suppliedKey));
+    return CryptographicOperations.FixedTimeEquals(configuredBytes, suppliedBytes);
+}
 
 public partial class Program
 {
