@@ -51,4 +51,29 @@ public sealed class FoDicomFileService : IDicomFileService
             $"synthetic-{sopInstanceUid}.dcm",
             "application/dicom");
     }
+
+    public DicomInspectionResult Inspect(Stream stream)
+    {
+        if (!stream.CanRead)
+        {
+            throw new ArgumentException("The DICOM stream must be readable.", nameof(stream));
+        }
+
+        var file = DicomFile.Open(stream, FileReadOption.SkipLargeTags);
+        var dataset = file.Dataset;
+
+        var patientName = dataset.GetSingleValueOrDefault(
+            DicomTag.PatientName,
+            string.Empty);
+        var patientId = dataset.GetSingleValueOrDefault(
+            DicomTag.PatientID,
+            string.Empty);
+
+        return new DicomInspectionResult(
+            dataset.GetSingleValueOrDefault(DicomTag.Modality, string.Empty),
+            dataset.GetSingleValueOrDefault(DicomTag.SOPClassUID, string.Empty),
+            !string.IsNullOrWhiteSpace(patientName) || !string.IsNullOrWhiteSpace(patientId),
+            dataset.GetSingleValueOrDefault(DicomTag.PatientIdentityRemoved, string.Empty),
+            file.IsPartial);
+    }
 }
