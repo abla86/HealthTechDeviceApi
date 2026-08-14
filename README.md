@@ -2,56 +2,59 @@
 
 [![.NET CI](https://github.com/abla86/HealthTechDeviceApi/actions/workflows/dotnet-ci.yml/badge.svg)](https://github.com/abla86/HealthTechDeviceApi/actions/workflows/dotnet-ci.yml)
 
-REST API for managing healthcare technology devices, built with C# and ASP.NET Core.
+REST API for healthcare-technology device management and secure medical-imaging development, built with C# and ASP.NET Core.
 
 ## Features
 
-- RESTful CRUD operations
+- RESTful device CRUD operations
 - Health-check endpoint
 - Device filtering by status, type and location
 - Device statistics endpoint
-- Input validation
-- Normalized device status values
-- HTTP status handling
-- JSON responses
+- Input validation and normalized status values
 - OpenAPI support
-- Automated API tests with xUnit
-- Unit tests for application service behaviour
 - Repository abstraction and dependency injection
 - Separation of domain, application and infrastructure concerns
+- Synthetic DICOM Part 10 file generation with `fo-dicom`
+- Generated Study, Series and SOP Instance UIDs
+- Explicit synthetic identity and de-identification markers
+- DICOM metadata and file-download endpoints
+- Automated API and application-service tests with xUnit
+- Automated tests for generated DICOM structure and synthetic metadata
 - GitHub Actions continuous integration
 - Docker image build and runtime verification in CI
 - CodeQL security scanning
 - Dependabot dependency monitoring
 - Docker containerization
-- Sample healthcare device data
 
 ## Architecture
 
-The current development branch introduces a layered structure as the foundation for the secure medical-imaging track:
+The secure medical-imaging branch uses a layered structure:
 
-- `Domain` - device models and API contracts
-- `Application` - business logic and repository abstraction
-- `Infrastructure` - in-memory repository implementation
+- `Domain` - device and DICOM models
+- `Application` - business logic and service/repository abstractions
+- `Infrastructure` - in-memory device persistence and fo-dicom implementation
 - `Program.cs` - HTTP endpoint composition and dependency injection
 
-This separation reduces coupling between HTTP endpoints, business rules and persistence and prepares the project for later SQL persistence and DICOM-specific services.
+The design keeps HTTP concerns, business rules and infrastructure dependencies separated and provides a base for SQL persistence and additional DICOM security controls.
 
 ## Secure DICOM development track
 
-A staged secure medical-imaging implementation is under development. Planned functionality is documented separately and is not presented as complete until it is implemented and tested.
+The first DICOM implementation is now present. It creates a synthetic DICOM Part 10 file and never requires real patient data.
 
-Planned stages include:
+Current DICOM functionality:
 
-1. SOLID architecture and test coverage
-2. DICOM metadata handling using synthetic/de-identified data
-3. SQL persistence
-4. authentication, authorization and audit controls
-5. threat modelling and vulnerability assessment
-6. secure connectivity and container hardening
-7. cloud deployment
+- `fo-dicom` 5.2.6
+- synthetic Patient ID and Patient Name
+- `Patient Identity Removed = YES`
+- de-identification-method marker
+- generated DICOM UIDs
+- Secondary Capture SOP Class
+- `application/dicom` download response
+- automated checks for the Part 10 `DICM` signature
 
-See `docs/SECURE_DICOM_ROADMAP.md` and `SECURITY.md` for the implementation and security constraints.
+The next DICOM stage is safe metadata inspection of uploaded files with strict validation and size limits. SQL persistence, authentication/authorization, threat modelling, secure networking and Azure deployment remain planned and are not claimed as implemented.
+
+See `docs/SECURE_DICOM_ROADMAP.md` and `SECURITY.md`.
 
 ## Technology Stack
 
@@ -61,6 +64,7 @@ See `docs/SECURE_DICOM_ROADMAP.md` and `SECURITY.md` for the implementation and 
 - Minimal APIs
 - REST
 - OpenAPI
+- fo-dicom 5.2.6
 - xUnit
 - Microsoft.AspNetCore.Mvc.Testing
 - GitHub Actions
@@ -72,19 +76,18 @@ See `docs/SECURE_DICOM_ROADMAP.md` and `SECURITY.md` for the implementation and 
 | --- | --- | --- |
 | GET | / | API information |
 | GET | /health | Health check |
-| GET | /devices | List devices |
-| GET | /devices?status=Online | Filter by status |
-| GET | /devices?type=Vital%20Signs | Filter by type |
-| GET | /devices?location=Home%20Care | Filter by location |
+| GET | /devices | List/filter devices |
 | GET | /devices/stats | Device statistics |
 | GET | /devices/{id} | Get device by ID |
 | POST | /devices | Create device |
 | PUT | /devices/{id} | Update device |
 | DELETE | /devices/{id} | Delete device |
+| GET | /dicom/synthetic/metadata | Return metadata for a newly generated synthetic DICOM study |
+| GET | /dicom/synthetic | Generate and download a synthetic DICOM Part 10 file |
 
 ## Automated Testing
 
-The API includes xUnit integration tests and application-service unit tests.
+The project includes xUnit integration tests and application-service/DICOM unit tests.
 
 Run tests:
 
@@ -94,7 +97,7 @@ Run tests:
 
 GitHub Actions restores dependencies, builds the API in Release configuration and runs the automated test suite on pushes and pull requests to `main`.
 
-Verified automation on the main branch includes:
+Automation includes:
 
 - .NET build and automated tests
 - Docker image build and container endpoint verification
@@ -103,8 +106,6 @@ Verified automation on the main branch includes:
 
 ## Docker
 
-The API is containerized using a multi-stage Docker build with the official .NET 9 SDK and ASP.NET Core runtime images.
-
 Build the image:
 
     docker build -t healthtech-device-api:latest .
@@ -112,6 +113,10 @@ Build the image:
 Run the container:
 
     docker run --rm -p 8080:8080 healthtech-device-api:latest
+
+## Data Safety
+
+Only synthetic, generated or appropriately de-identified demonstration data may be used. Real patient information must not be committed to this repository or uploaded to public demo environments.
 
 ## Run Locally
 
