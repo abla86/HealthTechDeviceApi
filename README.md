@@ -16,12 +16,42 @@ REST API for managing healthcare technology devices, built with C# and ASP.NET C
 - JSON responses
 - OpenAPI support
 - Automated API tests with xUnit
+- Unit tests for application service behaviour
+- Repository abstraction and dependency injection
+- Separation of domain, application and infrastructure concerns
 - GitHub Actions continuous integration
 - Docker image build and runtime verification in CI
 - CodeQL security scanning
 - Dependabot dependency monitoring
 - Docker containerization
 - Sample healthcare device data
+
+## Architecture
+
+The current development branch introduces a layered structure as the foundation for the secure medical-imaging track:
+
+- `Domain` - device models and API contracts
+- `Application` - business logic and repository abstraction
+- `Infrastructure` - in-memory repository implementation
+- `Program.cs` - HTTP endpoint composition and dependency injection
+
+This separation reduces coupling between HTTP endpoints, business rules and persistence and prepares the project for later SQL persistence and DICOM-specific services.
+
+## Secure DICOM development track
+
+A staged secure medical-imaging implementation is under development. Planned functionality is documented separately and is not presented as complete until it is implemented and tested.
+
+Planned stages include:
+
+1. SOLID architecture and test coverage
+2. DICOM metadata handling using synthetic/de-identified data
+3. SQL persistence
+4. authentication, authorization and audit controls
+5. threat modelling and vulnerability assessment
+6. secure connectivity and container hardening
+7. cloud deployment
+
+See `docs/SECURE_DICOM_ROADMAP.md` and `SECURITY.md` for the implementation and security constraints.
 
 ## Technology Stack
 
@@ -54,9 +84,7 @@ REST API for managing healthcare technology devices, built with C# and ASP.NET C
 
 ## Automated Testing
 
-The API includes an automated xUnit integration test suite.
-
-Current status: **7/7 tests passing**.
+The API includes xUnit integration tests and application-service unit tests.
 
 Run tests:
 
@@ -64,12 +92,11 @@ Run tests:
 
 ## Continuous Integration
 
-GitHub Actions automatically restores dependencies, builds the API in Release configuration and runs the automated test suite on pushes and pull requests to `main`.
+GitHub Actions restores dependencies, builds the API in Release configuration and runs the automated test suite on pushes and pull requests to `main`.
 
-The CI workflows have been successfully verified on GitHub.
+Verified automation on the main branch includes:
 
-Verified automation:
-- .NET build and 7/7 automated tests
+- .NET build and automated tests
 - Docker image build and container endpoint verification
 - CodeQL static security analysis
 - Dependabot monitoring for NuGet packages and GitHub Actions
@@ -86,18 +113,6 @@ Run the container:
 
     docker run --rm -p 8080:8080 healthtech-device-api:latest
 
-Verified container endpoints:
-
-- `GET /health` - healthy
-- `GET /devices/stats` - verified
-
-Verified sample statistics:
-
-- Total devices: 3
-- Online: 2
-- Offline: 1
-- Maintenance: 0
-
 ## Run Locally
 
     dotnet restore
@@ -106,4 +121,3 @@ Verified sample statistics:
 ## Author
 
 Anne Beth Andersen
-
