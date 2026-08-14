@@ -32,4 +32,20 @@ public sealed class DicomServiceTests
         Assert.False(string.IsNullOrWhiteSpace(artifact.Metadata.SeriesInstanceUid));
         Assert.False(string.IsNullOrWhiteSpace(artifact.Metadata.SopInstanceUid));
     }
+
+    [Fact]
+    public void Inspect_ReturnsAllowListedMetadataWithoutIdentityValues()
+    {
+        var service = new FoDicomFileService();
+        var artifact = service.CreateSyntheticStudy();
+
+        using var stream = new MemoryStream(artifact.Content);
+        var result = service.Inspect(stream);
+
+        Assert.Equal("OT", result.Modality);
+        Assert.Equal(artifact.Metadata.SopClassUid, result.SopClassUid);
+        Assert.True(result.ContainsPatientIdentity);
+        Assert.Equal("YES", result.PatientIdentityRemoved);
+        Assert.False(result.IsPartial);
+    }
 }
