@@ -1,300 +1,247 @@
-using System.ComponentModel.DataAnnotations;
+using System.Security.Cryptography;
+using System.Text;
+using Microsoft.EntityFrameworkCore;
+
+const long MaxDicomUploadBytes = 5 * 1024 * 1024;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddOpenApi();
+builder.Services.AddSingleton<IDeviceRepository, InMemoryDeviceRepository>();
+builder.Services.AddSingleton<DeviceService>();
+builder.Services.AddSingleton<IDicomFileService, FoDicomFileService>();
+
+var connectionString = builder.Configuration.GetConnectionString("HealthTech")
+    ?? "Data Source=healthtech.db";
+
+builder.Services.AddDbContext<HealthTechDbContext>(options =>
+    options.UseSqlite(connectionString));
+builder.Services.AddScoped<IDicomMetadataRepository, EfDicomMetadataRepository>();
 
 var app = builder.Build();
+
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<HealthTechDbContext>();
+    db.Database.EnsureCreated();
+}
+
+app.Use(async (context, next) =>
+{
+    context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+    context.Response.Headers["X-Frame-Options"] = "DENY";
+    context.Response.Headers["Referrer-Policy"] = "no-referrer";
+    context.Response.Headers["Cache-Control"] = "no-store";
+    await next();
+});
 
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
 }
 
-var devices = new List<Device>
-{
-    new(1, "Blood Pressure Monitor", "Vital Signs", "Online", "Home Care"),
-    new(2, "Pulse Oximeter", "Vital Signs", "Online", "Home Care"),
-    new(3, "Medication Dispenser", "Medication", "Offline", "Patient Home")
-};
-
-var validStatuses = new[]
-{
-    "Online",
-    "Offline",
-    "Maintenance"
-};
-
 app.MapGet("/", () => Results.Ok(new
 {
     name = "HealthTech Device API",
-    version = "1.1.0",
+    version = "1.5.0",
     status = "running"
 }));
 
-app.MapGet("/health", () => Results.Ok(new
+app.MapGet("/health", async (HealthTechDbContext db, CancellationToken cancellationToken) =>
 {
-    status = "healthy",
-    timestamp = DateTime.UtcNow
-}));
+    var databaseAvailable = await db.Database.CanConnectAsync(cancellationToken);
+
+    return Results.Ok(new
+    {
+        status = databaseAvailable ? "healthy" : "degraded",
+        database = databaseAvailable ? "available" : "unavailable",
+        timestamp = DateTime.UtcNow
+    });
+});
 
 app.MapGet("/devices", (
+    DeviceService service,
     string? status,
     string? type,
     string? location) =>
 {
-    IEnumerable<Device> result = devices;
-
-    if (!string.IsNullOrWhiteSpace(status))
-    {
-        result = result.Where(d =>
-            d.Status.Equals(
-                status,
-                StringComparison.OrdinalIgnoreCase));
-    }
-
-    if (!string.IsNullOrWhiteSpace(type))
-    {
-        result = result.Where(d =>
-            d.Type.Equals(
-                type,
-                StringComparison.OrdinalIgnoreCase));
-    }
-
-    if (!string.IsNullOrWhiteSpace(location))
-    {
-        result = result.Where(d =>
-            d.Location.Equals(
-                location,
-                StringComparison.OrdinalIgnoreCase));
-    }
-
-    return Results.Ok(result);
+    return Results.Ok(service.GetDevices(status, type, location));
 });
 
-app.MapGet("/devices/stats", () =>
+app.MapGet("/devices/stats", (DeviceService service) =>
 {
-    var total = devices.Count;
-    var online = devices.Count(d =>
-        d.Status.Equals(
-            "Online",
-            StringComparison.OrdinalIgnoreCase));
-
-    var offline = devices.Count(d =>
-        d.Status.Equals(
-            "Offline",
-            StringComparison.OrdinalIgnoreCase));
-
-    var maintenance = devices.Count(d =>
-        d.Status.Equals(
-            "Maintenance",
-            StringComparison.OrdinalIgnoreCase));
-
-    return Results.Ok(new
-    {
-        total,
-        online,
-        offline,
-        maintenance
-    });
+    return Results.Ok(service.GetStats());
 });
 
-app.MapGet("/devices/{id:int}", (int id) =>
+app.MapGet("/devices/{id:int}", (int id, DeviceService service) =>
 {
-    var device = devices.FirstOrDefault(d => d.Id == id);
+    var device = service.GetDevice(id);
 
     return device is null
-        ? Results.NotFound(new
-        {
-            message = $"Device {id} was not found."
-        })
+        ? Results.NotFound(new { message = $"Device {id} was not found." })
         : Results.Ok(device);
 });
 
-app.MapPost("/devices", (CreateDevice request) =>
+app.MapPost("/devices", (CreateDevice request, DeviceService service) =>
 {
-    var validationError = ValidateCreateRequest(
-        request,
-        validStatuses);
+    var result = service.Create(request);
 
-    if (validationError is not null)
+    if (result.Error is not null)
     {
-        return Results.BadRequest(new
-        {
-            message = validationError
-        });
+        return Results.BadRequest(new { message = result.Error });
     }
 
-    var nextId = devices.Count == 0
-        ? 1
-        : devices.Max(d => d.Id) + 1;
-
-    var device = new Device(
-        nextId,
-        request.Name.Trim(),
-        request.Type.Trim(),
-        NormalizeStatus(request.Status),
-        request.Location.Trim()
-    );
-
-    devices.Add(device);
-
-    return Results.Created(
-        $"/devices/{device.Id}",
-        device);
+    var device = result.Device!;
+    return Results.Created($"/devices/{device.Id}", device);
 });
 
-app.MapPut("/devices/{id:int}", (
-    int id,
-    UpdateDevice request) =>
+app.MapPut("/devices/{id:int}", (int id, UpdateDevice request, DeviceService service) =>
 {
-    var index = devices.FindIndex(d => d.Id == id);
+    var result = service.Update(id, request);
 
-    if (index == -1)
+    if (result.NotFound)
     {
-        return Results.NotFound(new
-        {
-            message = $"Device {id} was not found."
-        });
+        return Results.NotFound(new { message = $"Device {id} was not found." });
     }
 
-    var validationError = ValidateUpdateRequest(
-        request,
-        validStatuses);
-
-    if (validationError is not null)
+    if (result.Error is not null)
     {
-        return Results.BadRequest(new
-        {
-            message = validationError
-        });
+        return Results.BadRequest(new { message = result.Error });
     }
 
-    var current = devices[index];
-
-    var updated = current with
-    {
-        Name = request.Name?.Trim() ?? current.Name,
-        Type = request.Type?.Trim() ?? current.Type,
-        Status = request.Status is null
-            ? current.Status
-            : NormalizeStatus(request.Status),
-        Location = request.Location?.Trim() ?? current.Location
-    };
-
-    devices[index] = updated;
-
-    return Results.Ok(updated);
+    return Results.Ok(result.Device);
 });
 
-app.MapDelete("/devices/{id:int}", (int id) =>
+app.MapDelete("/devices/{id:int}", (int id, DeviceService service) =>
 {
-    var device = devices.FirstOrDefault(d => d.Id == id);
+    return service.Delete(id)
+        ? Results.NoContent()
+        : Results.NotFound(new { message = $"Device {id} was not found." });
+});
 
-    if (device is null)
+app.MapGet("/dicom/synthetic/metadata", (IDicomFileService service) =>
+{
+    var artifact = service.CreateSyntheticStudy();
+    return Results.Ok(artifact.Metadata);
+});
+
+app.MapGet("/dicom/synthetic", (IDicomFileService service) =>
+{
+    var artifact = service.CreateSyntheticStudy();
+
+    return Results.File(
+        artifact.Content,
+        artifact.ContentType,
+        artifact.FileName);
+});
+
+app.MapPost("/dicom/inspect", async (
+    HttpRequest request,
+    IDicomFileService service,
+    IDicomMetadataRepository repository,
+    CancellationToken cancellationToken) =>
+{
+    if (request.ContentType?.StartsWith(
+            "application/dicom",
+            StringComparison.OrdinalIgnoreCase) != true)
     {
-        return Results.NotFound(new
-        {
-            message = $"Device {id} was not found."
-        });
+        await repository.AddAuditEventAsync("dicom.inspect", "unsupported-media-type", cancellationToken);
+        return Results.StatusCode(StatusCodes.Status415UnsupportedMediaType);
     }
 
-    devices.Remove(device);
+    if (request.ContentLength is > MaxDicomUploadBytes)
+    {
+        await repository.AddAuditEventAsync("dicom.inspect", "payload-too-large", cancellationToken);
+        return Results.StatusCode(StatusCodes.Status413PayloadTooLarge);
+    }
 
-    return Results.NoContent();
+    using var buffer = new MemoryStream();
+    var chunk = new byte[81920];
+    long total = 0;
+
+    while (true)
+    {
+        var read = await request.Body.ReadAsync(chunk, cancellationToken);
+        if (read == 0)
+        {
+            break;
+        }
+
+        total += read;
+        if (total > MaxDicomUploadBytes)
+        {
+            await repository.AddAuditEventAsync("dicom.inspect", "payload-too-large", cancellationToken);
+            return Results.StatusCode(StatusCodes.Status413PayloadTooLarge);
+        }
+
+        await buffer.WriteAsync(chunk.AsMemory(0, read), cancellationToken);
+    }
+
+    if (total == 0)
+    {
+        await repository.AddAuditEventAsync("dicom.inspect", "empty-body", cancellationToken);
+        return Results.BadRequest(new { message = "A DICOM request body is required." });
+    }
+
+    buffer.Position = 0;
+
+    try
+    {
+        var inspection = service.Inspect(buffer);
+        await repository.AddInspectionAsync(inspection, cancellationToken);
+        await repository.AddAuditEventAsync("dicom.inspect", "success", cancellationToken);
+        return Results.Ok(inspection);
+    }
+    catch (FellowOakDicom.DicomFileException)
+    {
+        await repository.AddAuditEventAsync("dicom.inspect", "invalid-dicom", cancellationToken);
+        return Results.BadRequest(new { message = "The request body is not a readable DICOM file." });
+    }
+});
+
+app.MapGet("/dicom/admin/inspections", async (
+    HttpRequest request,
+    IConfiguration configuration,
+    IDicomMetadataRepository repository,
+    int? take,
+    CancellationToken cancellationToken) =>
+{
+    if (!IsAuthorized(request, configuration))
+    {
+        await repository.AddAuditEventAsync("dicom.admin.inspections", "unauthorized", cancellationToken);
+        return Results.Unauthorized();
+    }
+
+    await repository.AddAuditEventAsync("dicom.admin.inspections", "success", cancellationToken);
+    var records = await repository.GetRecentAsync(take ?? 25, cancellationToken);
+    return Results.Ok(records);
 });
 
 app.Run();
 
-static string? ValidateCreateRequest(
-    CreateDevice request,
-    IReadOnlyCollection<string> validStatuses)
+static bool IsAuthorized(HttpRequest request, IConfiguration configuration)
 {
-    if (string.IsNullOrWhiteSpace(request.Name) ||
-        string.IsNullOrWhiteSpace(request.Type) ||
-        string.IsNullOrWhiteSpace(request.Status) ||
-        string.IsNullOrWhiteSpace(request.Location))
+    var configuredKey = configuration["Security:ApiKey"];
+    if (string.IsNullOrWhiteSpace(configuredKey))
     {
-        return "Name, type, status and location are required.";
+        return false;
     }
 
-    if (!validStatuses.Any(status =>
-        status.Equals(
-            request.Status,
-            StringComparison.OrdinalIgnoreCase)))
+    if (!request.Headers.TryGetValue("X-API-Key", out var suppliedValues))
     {
-        return "Status must be Online, Offline or Maintenance.";
+        return false;
     }
 
-    return null;
+    var suppliedKey = suppliedValues.ToString();
+    if (string.IsNullOrWhiteSpace(suppliedKey))
+    {
+        return false;
+    }
+
+    var configuredBytes = SHA256.HashData(Encoding.UTF8.GetBytes(configuredKey));
+    var suppliedBytes = SHA256.HashData(Encoding.UTF8.GetBytes(suppliedKey));
+    return CryptographicOperations.FixedTimeEquals(configuredBytes, suppliedBytes);
 }
-
-static string? ValidateUpdateRequest(
-    UpdateDevice request,
-    IReadOnlyCollection<string> validStatuses)
-{
-    if (request.Name is not null &&
-        string.IsNullOrWhiteSpace(request.Name))
-    {
-        return "Name cannot be empty.";
-    }
-
-    if (request.Type is not null &&
-        string.IsNullOrWhiteSpace(request.Type))
-    {
-        return "Type cannot be empty.";
-    }
-
-    if (request.Location is not null &&
-        string.IsNullOrWhiteSpace(request.Location))
-    {
-        return "Location cannot be empty.";
-    }
-
-    if (request.Status is not null &&
-        !validStatuses.Any(status =>
-            status.Equals(
-                request.Status,
-                StringComparison.OrdinalIgnoreCase)))
-    {
-        return "Status must be Online, Offline or Maintenance.";
-    }
-
-    return null;
-}
-
-static string NormalizeStatus(string status)
-{
-    return status.Trim().ToLowerInvariant() switch
-    {
-        "online" => "Online",
-        "offline" => "Offline",
-        "maintenance" => "Maintenance",
-        _ => status.Trim()
-    };
-}
-
-public record Device(
-    int Id,
-    string Name,
-    string Type,
-    string Status,
-    string Location
-);
-
-public record CreateDevice(
-    [Required] string Name,
-    [Required] string Type,
-    [Required] string Status,
-    [Required] string Location
-);
-
-public record UpdateDevice(
-    string? Name,
-    string? Type,
-    string? Status,
-    string? Location
-);
 
 public partial class Program
 {
