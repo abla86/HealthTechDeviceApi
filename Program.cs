@@ -3,6 +3,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddOpenApi();
 builder.Services.AddSingleton<IDeviceRepository, InMemoryDeviceRepository>();
 builder.Services.AddSingleton<DeviceService>();
+builder.Services.AddSingleton<IDicomFileService, FoDicomFileService>();
 
 var app = builder.Build();
 
@@ -14,7 +15,7 @@ if (app.Environment.IsDevelopment())
 app.MapGet("/", () => Results.Ok(new
 {
     name = "HealthTech Device API",
-    version = "1.2.0",
+    version = "1.3.0",
     status = "running"
 }));
 
@@ -103,6 +104,22 @@ app.MapDelete("/devices/{id:int}", (int id, DeviceService service) =>
         {
             message = $"Device {id} was not found."
         });
+});
+
+app.MapGet("/dicom/synthetic/metadata", (IDicomFileService service) =>
+{
+    var artifact = service.CreateSyntheticStudy();
+    return Results.Ok(artifact.Metadata);
+});
+
+app.MapGet("/dicom/synthetic", (IDicomFileService service) =>
+{
+    var artifact = service.CreateSyntheticStudy();
+
+    return Results.File(
+        artifact.Content,
+        artifact.ContentType,
+        artifact.FileName);
 });
 
 app.Run();
