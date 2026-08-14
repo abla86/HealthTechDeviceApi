@@ -14,7 +14,7 @@ Status: implemented on `feature/secure-dicom-service`.
 
 ## Stage 2 - DICOM file handling
 
-Status: in progress.
+Status: implemented for the initial safe-file-handling scope.
 
 Implemented:
 
@@ -26,14 +26,18 @@ Implemented:
 - De-identification method marker
 - DICOM metadata endpoint
 - DICOM file download endpoint using `application/dicom`
-- Automated checks for the Part 10 `DICM` signature and synthetic metadata
+- Raw `application/dicom` inspection endpoint
+- 5 MiB request-body limit enforced while streaming
+- Large DICOM values skipped during metadata inspection
+- Allow-listed inspection response that does not return patient-name or patient-ID values
+- Invalid DICOM input converted to a generic client error
+- Automated checks for the Part 10 `DICM` signature, synthetic metadata and inspection behaviour
 
-Next:
+Next hardening work:
 
-- Parse uploaded DICOM files with strict size limits
-- Return an allow-listed metadata view only
-- Reject malformed or unsupported input safely
-- Add tests for hostile and invalid file input
+- Integration tests for invalid media type, empty body and oversize requests
+- Additional malformed-input and fuzz-style test cases
+- Explicit request timeout/cancellation tests
 
 ## Stage 3 - Persistence
 
@@ -50,7 +54,6 @@ Planned:
 
 - Authentication and authorization
 - Audit events without patient-identifying data
-- Request limits and safer error responses
 - Security headers
 - Threat model and abuse-case tests
 
