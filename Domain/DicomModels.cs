@@ -16,3 +16,11 @@ public sealed record DicomArtifact(
     string FileName,
     string ContentType
 );
+
+public sealed record DicomInspectionResult(
+    string Modality,
+    string SopClassUid,
+    bool ContainsPatientIdentity,
+    string PatientIdentityRemoved,
+    bool IsPartial
+);
