@@ -4,6 +4,17 @@
 
 REST API for healthcare-technology device management and secure medical-imaging development, built with C# and ASP.NET Core.
 
+## Start here
+
+| Need | Go to |
+|---|---|
+| Current scope and status | [Status](#status) |
+| See implemented functionality | [Implemented](#implemented) |
+| Understand DICOM boundaries | [DICOM development boundary](#dicom-development-boundary) |
+| Run tests | [Testing](#testing) |
+| Run with Docker | [Docker](#docker) |
+| See portfolio context | [Developer portfolio](https://abla86.github.io/developer-portfolio/) |
+
 ## Status
 
 **Development / demonstration project.**
