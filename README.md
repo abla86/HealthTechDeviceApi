@@ -4,27 +4,33 @@
 
 REST API for healthcare-technology device management and secure medical-imaging development, built with C# and ASP.NET Core.
 
-## Features
+## Status at a glance
+
+**Development / demonstration project.**
+
+Implemented functionality is documented separately from planned production features. The repository is suitable for demonstrating API engineering, testing, containerisation and security-aware healthcare software development. It is **not presented as a production medical-imaging system or clinically validated software**.
+
+## What is implemented
 
 - RESTful device CRUD operations
-- Health-check endpoint
-- Device filtering and statistics
-- Input validation and normalized status values
+- health-check endpoint
+- device filtering and statistics
+- input validation and normalised status values
 - OpenAPI support
-- Repository abstraction and dependency injection
-- Layered domain, application and infrastructure structure
-- Synthetic DICOM Part 10 file generation with `fo-dicom`
-- Synthetic metadata and de-identification markers
-- Bounded `application/dicom` metadata inspection
-- Automated API, service and DICOM tests with xUnit
-- GitHub Actions continuous integration
-- Docker build and runtime verification in CI
+- repository abstraction and dependency injection
+- layered domain/application/infrastructure structure
+- synthetic DICOM Part 10 file generation with `fo-dicom`
+- synthetic metadata and de-identification markers
+- bounded `application/dicom` metadata inspection
+- automated API, service and DICOM tests with xUnit
+- GitHub Actions CI
+- Docker build/runtime verification in CI
 - CodeQL security scanning
 - Dependabot dependency monitoring
 
 ## Secure DICOM development track
 
-The current DICOM implementation creates synthetic demonstration files and supports bounded inspection of uploaded DICOM request bodies. It does not claim production medical-imaging security or clinical validation.
+The current DICOM implementation creates synthetic demonstration files and supports bounded inspection of uploaded DICOM request bodies. It does **not** claim production medical-imaging security or clinical validation.
 
 Current functionality includes synthetic identifiers, generated DICOM UIDs, de-identification markers, bounded inspection and allow-listed metadata output.
 
@@ -32,7 +38,7 @@ SQL persistence, authentication/authorization, threat modelling, secure networki
 
 See `docs/SECURE_DICOM_ROADMAP.md` and `SECURITY.md`.
 
-## Technology Stack
+## Technology actually represented
 
 - C#
 - .NET 9
@@ -46,17 +52,15 @@ See `docs/SECURE_DICOM_ROADMAP.md` and `SECURITY.md`.
 - GitHub Actions
 - Docker
 
-## Automated Testing
+## Testing
 
-Run tests:
+Run the automated test suite:
 
 ```powershell
 dotnet test .\HealthTechDeviceApi.Tests\HealthTechDeviceApi.Tests.csproj
 ```
 
-## Continuous Integration
-
-GitHub Actions builds the API and runs the automated test suite. The repository also contains Docker verification, CodeQL and Dependabot configuration.
+The repository documents automated API, service and DICOM tests. CI builds the API and runs the test suite, with Docker verification, CodeQL and Dependabot configuration also present.
 
 ## Docker
 
@@ -65,21 +69,35 @@ docker build -t healthtech-device-api:latest .
 docker run --rm -p 8080:8080 healthtech-device-api:latest
 ```
 
-## Data Safety
+## Data safety
 
-Only synthetic, generated or appropriately de-identified demonstration data may be used. Real patient information must not be committed to this public repository or uploaded to public demo environments.
+Only synthetic, generated or appropriately de-identified demonstration data may be used. Real patient information must not be committed to this public repository or uploaded to public demonstration environments.
 
-## Run Locally
+## Run locally
 
 ```powershell
 dotnet restore
 dotnet run
 ```
 
-## Status
+## Employer / portfolio evidence
 
-Development / demonstration project. The repository documents implemented functionality separately from planned production features.
+This project demonstrates:
+
+- ASP.NET Core REST API development
+- validation and dependency injection
+- layered application architecture
+- automated testing
+- OpenAPI documentation
+- Docker-based execution
+- CI and security tooling
+- healthcare-aware data-safety boundaries
+- explicit separation between implemented functionality and future production work
 
 ## Author
 
 Anne Beth Andersen
+
+## Portfolio
+
+https://abla86.github.io/developer-portfolio/
