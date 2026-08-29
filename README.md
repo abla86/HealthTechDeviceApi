@@ -31,6 +31,8 @@ This is a **combined platform unit**. The former standalone monitoring-dashboard
 
 ## Application security
 
+**Portfolio security focus:** secure API boundaries, validation, throttling, safe handling of synthetic healthcare data and auditable failure paths.
+
 Security is implemented at the application boundary rather than presented as a separate security demo.
 
 | Control | Implementation | Evidence |
