@@ -1,25 +1,10 @@
-# HealthTech Device API
+# HealthTech Device Platform
 
-[![.NET CI](https://github.com/abla86/HealthTechDeviceApi/actions/workflows/dotnet-ci.yml/badge.svg)](https://github.com/abla86/HealthTechDeviceApi/actions/workflows/dotnet-ci.yml)
+A healthcare-technology engineering project combining a C#/.NET REST API with a browser dashboard for simulated device monitoring. It demonstrates backend/API engineering, validation, layered architecture, OpenAPI, Docker, CI/security controls and frontend integration without using real patient data.
 
-REST API for healthcare-technology device management and secure medical-imaging development, built with C# and ASP.NET Core.
+## Portfolio role
 
-## Start here
-
-| Need | Go to |
-|---|---|
-| Current scope and status | [Status](#status) |
-| See implemented functionality | [Implemented](#implemented) |
-| Understand DICOM boundaries | [DICOM development boundary](#dicom-development-boundary) |
-| Run tests | [Testing](#testing) |
-| Run with Docker | [Docker](#docker) |
-| See portfolio context | [Developer portfolio](https://abla86.github.io/developer-portfolio/) |
-
-## Status
-
-**Development / demonstration project.**
-
-The repository demonstrates API engineering, validation, testing, containerisation and security-aware healthcare software development. It is not presented as a production medical-imaging system or clinically validated software.
+This is a **combined platform unit**. The former standalone monitoring-dashboard capability is represented here because it complements the device API rather than adding a separate portfolio product. The separate `healthtech-dashboard` repository is retained as implementation history and should not be promoted as a second flagship project.
 
 ## Implemented
 
@@ -38,6 +23,11 @@ The repository demonstrates API engineering, validation, testing, containerisati
 - Docker build/runtime verification in CI
 - CodeQL scanning
 - Dependabot monitoring
+- browser dashboard integration for simulated device status and metrics
+
+## Technology breadth demonstrated
+
+**C# / .NET** · ASP.NET Core · Minimal APIs · REST · OpenAPI · dependency injection · layered architecture · xUnit · Docker · GitHub Actions · CodeQL · Dependabot · DICOM/fo-dicom · HTML5 · CSS3 · JavaScript · Fetch API
 
 ## DICOM development boundary
 
@@ -48,20 +38,6 @@ Current functionality includes generated synthetic identifiers and DICOM UIDs, d
 The repository does not currently claim SQL persistence, authentication/authorization, threat modelling, secure networking or Azure deployment as implemented functionality.
 
 See `docs/SECURE_DICOM_ROADMAP.md` and `SECURITY.md`.
-
-## Technology
-
-- C#
-- .NET 9
-- ASP.NET Core
-- Minimal APIs
-- REST
-- OpenAPI
-- fo-dicom 5.2.6
-- xUnit
-- Microsoft.AspNetCore.Mvc.Testing
-- GitHub Actions
-- Docker
 
 ## Testing
 
@@ -82,20 +58,13 @@ docker run --rm -p 8080:8080 healthtech-device-api:latest
 
 Use only synthetic, generated or appropriately de-identified demonstration data. Do not commit real patient information or upload real patient information to public demonstrations.
 
-## Run locally
+## Portfolio evidence
 
-```powershell
-dotnet restore
-dotnet run
-```
+This project demonstrates ASP.NET Core REST API development, validation, dependency injection, layered architecture, automated testing, OpenAPI documentation, Docker execution, CI/security tooling and a complementary browser monitoring interface. The project is a demonstration platform, not a clinically validated medical system.
 
-## Employer / portfolio evidence
+## Status
 
-This project demonstrates ASP.NET Core REST API development, validation, dependency injection, layered architecture, automated testing, OpenAPI documentation, Docker execution, CI/security tooling and explicit healthcare data-safety boundaries.
-
-## Author
-
-Anne Beth Andersen
+**Active portfolio project / demonstration platform.** Current implementation status is represented by the code, repository history and CI verification.
 
 ## Portfolio
 
