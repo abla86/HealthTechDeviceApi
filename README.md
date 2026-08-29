@@ -25,9 +25,13 @@ This is a **combined platform unit**. The former standalone monitoring-dashboard
 - Dependabot monitoring
 - browser dashboard integration for simulated device status and metrics
 
+## Engineering evidence
+
+This repository is deliberately positioned as an application-engineering flagship: the strongest evidence is the combination of a typed .NET API, layered domain boundaries, validation, synthetic DICOM handling, persistence, automated tests, containerization and security controls. The browser dashboard is supporting evidence, not a separate product.
+
 ## Technology breadth demonstrated
 
-**C# / .NET** · ASP.NET Core · Minimal APIs · REST · OpenAPI · dependency injection · layered architecture · xUnit · Docker · GitHub Actions · CodeQL · Dependabot · DICOM/fo-dicom · HTML5 · CSS3 · JavaScript · Fetch API
+**C# / .NET** · ASP.NET Core · Minimal APIs · REST · OpenAPI · dependency injection · layered architecture · EF Core / SQLite · xUnit · Docker · GitHub Actions · CodeQL · Dependabot · DICOM/fo-dicom · HTML5 · CSS3 · JavaScript · Fetch API
 
 ## Application security
 
@@ -55,7 +59,7 @@ The current DICOM implementation is for synthetic demonstration data and bounded
 
 Current functionality includes generated synthetic identifiers and DICOM UIDs, de-identification markers, bounded inspection and allow-listed metadata output.
 
-The repository does not currently claim SQL persistence, authentication/authorization, threat modelling, secure networking or Azure deployment as implemented functionality.
+The repository does not currently claim production authentication/authorization, threat modelling, secure networking or Azure deployment as implemented functionality.
 
 See `docs/SECURE_DICOM_ROADMAP.md` and `SECURITY.md`.
 
