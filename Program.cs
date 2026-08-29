@@ -1,12 +1,29 @@
 using System.Security.Cryptography;
 using System.Text;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using System.Threading.RateLimiting;
 
 const long MaxDicomUploadBytes = 5 * 1024 * 1024;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddOpenApi();
+
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("api-write", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 30,
+                Window = TimeSpan.FromSeconds(10),
+                QueueLimit = 0,
+                AutoReplenishment = true
+            }));
+});
 builder.Services.AddSingleton<IDeviceRepository, InMemoryDeviceRepository>();
 builder.Services.AddSingleton<DeviceService>();
 builder.Services.AddSingleton<IDicomFileService, FoDicomFileService>();
@@ -19,6 +36,8 @@ builder.Services.AddDbContext<HealthTechDbContext>(options =>
 builder.Services.AddScoped<IDicomMetadataRepository, EfDicomMetadataRepository>();
 
 var app = builder.Build();
+
+app.UseRateLimiter();
 
 using (var scope = app.Services.CreateScope())
 {
