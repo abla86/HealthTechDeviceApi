@@ -78,7 +78,14 @@ def assess_csv(file_path: str | Path) -> QualityReport:
                 invalid_values=0,
             )
 
-        checks.append(QualityCheck("Schema conformity", "PASS", "All required fields are present."))
+        if unexpected_headers:
+            checks.append(QualityCheck(
+                "Schema conformity",
+                "WARN",
+                "Unexpected fields present: " + ", ".join(unexpected_headers),
+            ))
+        else:
+            checks.append(QualityCheck("Schema conformity", "PASS", "All required fields are present."))
 
         patient_ids: list[str] = []
         for row_number, row in enumerate(reader, start=2):
@@ -110,7 +117,7 @@ def assess_csv(file_path: str | Path) -> QualityReport:
 
     checks.append(QualityCheck(
         "Completeness",
-        "PASS" if missing_values == 0 else "WARN",
+        "PASS" if missing_values == 0 else "FAIL",
         "No missing required values." if missing_values == 0 else f"{missing_values} missing required values detected.",
     ))
     checks.append(QualityCheck(
