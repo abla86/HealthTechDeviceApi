@@ -112,7 +112,7 @@ app.MapPost("/devices", (CreateDevice request, DeviceService service) =>
 
     var device = result.Device!;
     return Results.Created($"/devices/{device.Id}", device);
-});
+}).RequireRateLimiting("api-write");
 
 app.MapPut("/devices/{id:int}", (int id, UpdateDevice request, DeviceService service) =>
 {
@@ -129,14 +129,14 @@ app.MapPut("/devices/{id:int}", (int id, UpdateDevice request, DeviceService ser
     }
 
     return Results.Ok(result.Device);
-});
+}).RequireRateLimiting("api-write");
 
 app.MapDelete("/devices/{id:int}", (int id, DeviceService service) =>
 {
     return service.Delete(id)
         ? Results.NoContent()
         : Results.NotFound(new { message = $"Device {id} was not found." });
-});
+}).RequireRateLimiting("api-write");
 
 app.MapGet("/dicom/synthetic/metadata", (IDicomFileService service) =>
 {
@@ -216,7 +216,7 @@ app.MapPost("/dicom/inspect", async (
         await repository.AddAuditEventAsync("dicom.inspect", "invalid-dicom", cancellationToken);
         return Results.BadRequest(new { message = "The request body is not a readable DICOM file." });
     }
-});
+}).RequireRateLimiting("api-write");
 
 app.MapGet("/dicom/admin/inspections", async (
     HttpRequest request,
@@ -234,7 +234,7 @@ app.MapGet("/dicom/admin/inspections", async (
     await repository.AddAuditEventAsync("dicom.admin.inspections", "success", cancellationToken);
     var records = await repository.GetRecentAsync(take ?? 25, cancellationToken);
     return Results.Ok(records);
-});
+}).RequireRateLimiting("api-write");
 
 app.Run();
 
