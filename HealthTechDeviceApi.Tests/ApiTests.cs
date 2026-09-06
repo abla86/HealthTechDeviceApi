@@ -197,6 +197,33 @@ public sealed class ApiTests
     }
 
     [Fact]
+    public async Task DicomInspect_RejectsPayloadOverFiveMiB()
+    {
+        var payload = new byte[(5 * 1024 * 1024) + 1];
+        using var content = new ByteArrayContent(payload);
+        content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/dicom");
+
+        var response = await _client.PostAsync("/dicom/inspect", content);
+
+        Assert.Equal(HttpStatusCode.RequestEntityTooLarge, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Responses_IncludeSecurityHeaders()
+    {
+        var response = await _client.GetAsync("/health");
+
+        Assert.True(response.Headers.TryGetValues("X-Content-Type-Options", out var nosniff));
+        Assert.Contains("nosniff", nosniff);
+        Assert.True(response.Headers.TryGetValues("X-Frame-Options", out var frame));
+        Assert.Contains("DENY", frame);
+        Assert.True(response.Headers.TryGetValues("Referrer-Policy", out var referrer));
+        Assert.Contains("no-referrer", referrer);
+        Assert.True(response.Headers.TryGetValues("Cache-Control", out var cache));
+        Assert.Contains("no-store", cache);
+    }
+
+    [Fact]
     public async Task AdminInspections_RequiresApiKey()
     {
         var response = await _client.GetAsync("/dicom/admin/inspections");
