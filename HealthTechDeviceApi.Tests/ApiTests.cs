@@ -116,6 +116,54 @@ public sealed class ApiTests
     }
 
     [Fact]
+    public async Task CreateDevice_RejectsEmptyName()
+    {
+        var request = new CreateDevice(
+            "",
+            "Sensor",
+            "Online",
+            "Test Location");
+
+        var response = await _client.PostAsJsonAsync("/devices", request);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetDevices_WithUnknownFilterReturnsEmpty()
+    {
+        var response = await _client.GetAsync("/devices?status=NotARealStatus");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var devices = await response.Content.ReadFromJsonAsync<List<Device>>();
+        Assert.NotNull(devices);
+        Assert.Empty(devices);
+    }
+
+    [Fact]
+    public async Task UpdateDevice_ReturnsNotFoundForUnknownId()
+    {
+        var request = new UpdateDevice(
+            "Updated Device",
+            "Sensor",
+            "Online",
+            "Test Location");
+
+        var response = await _client.PutAsJsonAsync("/devices/9999", request);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task DeleteDevice_ReturnsNotFoundForUnknownId()
+    {
+        var response = await _client.DeleteAsync("/devices/9999");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Stats_ReturnsOk()
     {
         var response =
