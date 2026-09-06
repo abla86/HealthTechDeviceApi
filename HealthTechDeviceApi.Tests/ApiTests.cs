@@ -127,3 +127,34 @@ public sealed class ApiTests
             response.StatusCode);
     }
 }
+
+
+    [Fact]
+    public async Task DicomInspect_RejectsUnsupportedMediaType()
+    {
+        using var content = new ByteArrayContent(new byte[] { 1, 2, 3 });
+
+        var response = await _client.PostAsync("/dicom/inspect", content);
+
+        Assert.Equal(HttpStatusCode.UnsupportedMediaType, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task DicomInspect_RejectsEmptyDicomBody()
+    {
+        using var content = new ByteArrayContent(Array.Empty<byte>());
+        content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/dicom");
+
+        var response = await _client.PostAsync("/dicom/inspect", content);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task AdminInspections_RequiresApiKey()
+    {
+        var response = await _client.GetAsync("/dicom/admin/inspections");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+}
