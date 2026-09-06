@@ -126,7 +126,7 @@ public sealed class ApiTests
             HttpStatusCode.OK,
             response.StatusCode);
     }
-}
+
     [Fact]
     public async Task DicomInspect_RejectsUnsupportedMediaType()
     {
