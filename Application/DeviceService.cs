@@ -9,36 +9,14 @@ public sealed class DeviceService
 
     private readonly IDeviceRepository _repository;
 
-    public DeviceService(IDeviceRepository repository)
-    {
-        _repository = repository;
-    }
+    public DeviceService(IDeviceRepository repository) => _repository = repository;
 
-    public IReadOnlyList<Device> GetDevices(
-        string? status,
-        string? type,
-        string? location)
+    public IReadOnlyList<Device> GetDevices(string? status,string? type,string? location)
     {
         IEnumerable<Device> result = _repository.GetAll();
-
-        if (!string.IsNullOrWhiteSpace(status))
-        {
-            result = result.Where(device =>
-                device.Status.Equals(status, StringComparison.OrdinalIgnoreCase));
-        }
-
-        if (!string.IsNullOrWhiteSpace(type))
-        {
-            result = result.Where(device =>
-                device.Type.Equals(type, StringComparison.OrdinalIgnoreCase));
-        }
-
-        if (!string.IsNullOrWhiteSpace(location))
-        {
-            result = result.Where(device =>
-                device.Location.Equals(location, StringComparison.OrdinalIgnoreCase));
-        }
-
+        if (!string.IsNullOrWhiteSpace(status)) result = result.Where(device => device.Status.Equals(status, StringComparison.OrdinalIgnoreCase));
+        if (!string.IsNullOrWhiteSpace(type)) result = result.Where(device => device.Type.Equals(type, StringComparison.OrdinalIgnoreCase));
+        if (!string.IsNullOrWhiteSpace(location)) result = result.Where(device => device.Location.Equals(location, StringComparison.OrdinalIgnoreCase));
         return result.ToList();
     }
 
@@ -47,47 +25,24 @@ public sealed class DeviceService
     public (Device? Device, string? Error) Create(CreateDevice request)
     {
         var error = ValidateCreateRequest(request);
-        if (error is not null)
-        {
-            return (null, error);
-        }
-
-        var device = new Device(
-            0,
-            request.Name.Trim(),
-            request.Type.Trim(),
-            NormalizeStatus(request.Status),
-            request.Location.Trim());
-
+        if (error is not null) return (null, error);
+        var device = new Device(0, request.Name.Trim(), request.Type.Trim(), NormalizeStatus(request.Status), request.Location.Trim());
         return (_repository.Add(device), null);
     }
 
-    public (Device? Device, string? Error, bool NotFound) Update(
-        int id,
-        UpdateDevice request)
+    public (Device? Device, string? Error, bool NotFound) Update(int id, UpdateDevice request)
     {
         var current = _repository.GetById(id);
-        if (current is null)
-        {
-            return (null, null, true);
-        }
-
+        if (current is null) return (null, null, true);
         var error = ValidateUpdateRequest(request);
-        if (error is not null)
-        {
-            return (null, error, false);
-        }
-
+        if (error is not null) return (null, error, false);
         var updated = current with
         {
             Name = request.Name?.Trim() ?? current.Name,
             Type = request.Type?.Trim() ?? current.Type,
-            Status = request.Status is null
-                ? current.Status
-                : NormalizeStatus(request.Status),
+            Status = request.Status is null ? current.Status : NormalizeStatus(request.Status),
             Location = request.Location?.Trim() ?? current.Location
         };
-
         return (_repository.Update(id, updated), null, false);
     }
 
@@ -96,9 +51,7 @@ public sealed class DeviceService
     public DeviceStats GetStats()
     {
         var devices = _repository.GetAll();
-
-        return new DeviceStats(
-            devices.Count,
+        return new DeviceStats(devices.Count,
             devices.Count(device => device.Status.Equals("Online", StringComparison.OrdinalIgnoreCase)),
             devices.Count(device => device.Status.Equals("Offline", StringComparison.OrdinalIgnoreCase)),
             devices.Count(device => device.Status.Equals("Maintenance", StringComparison.OrdinalIgnoreCase)));
@@ -106,54 +59,29 @@ public sealed class DeviceService
 
     private static string? ValidateCreateRequest(CreateDevice request)
     {
-        if (string.IsNullOrWhiteSpace(request.Name) ||
-            string.IsNullOrWhiteSpace(request.Type) ||
-            string.IsNullOrWhiteSpace(request.Status) ||
-            string.IsNullOrWhiteSpace(request.Location))
-        {
+        if (string.IsNullOrWhiteSpace(request.Name) || string.IsNullOrWhiteSpace(request.Type) || string.IsNullOrWhiteSpace(request.Status) || string.IsNullOrWhiteSpace(request.Location))
             return "Name, type, status and location are required.";
-        }
-
-        return IsValidStatus(request.Status)
-            ? null
-            : "Status must be Online, Offline or Maintenance.";
+        if (request.Name.Trim().Length > 200) return "Name cannot exceed 200 characters.";
+        return IsValidStatus(request.Status) ? null : "Status must be Online, Offline or Maintenance.";
     }
 
     private static string? ValidateUpdateRequest(UpdateDevice request)
     {
-        if (request.Name is not null && string.IsNullOrWhiteSpace(request.Name))
-        {
-            return "Name cannot be empty.";
-        }
-
-        if (request.Type is not null && string.IsNullOrWhiteSpace(request.Type))
-        {
-            return "Type cannot be empty.";
-        }
-
-        if (request.Location is not null && string.IsNullOrWhiteSpace(request.Location))
-        {
-            return "Location cannot be empty.";
-        }
-
-        if (request.Status is not null && !IsValidStatus(request.Status))
-        {
-            return "Status must be Online, Offline or Maintenance.";
-        }
-
+        if (request.Name is not null && string.IsNullOrWhiteSpace(request.Name)) return "Name cannot be empty.";
+        if (request.Name is not null && request.Name.Trim().Length > 200) return "Name cannot exceed 200 characters.";
+        if (request.Type is not null && string.IsNullOrWhiteSpace(request.Type)) return "Type cannot be empty.";
+        if (request.Location is not null && string.IsNullOrWhiteSpace(request.Location)) return "Location cannot be empty.";
+        if (request.Status is not null && !IsValidStatus(request.Status)) return "Status must be Online, Offline or Maintenance.";
         return null;
     }
 
-    private static bool IsValidStatus(string status) =>
-        ValidStatuses.Any(valid =>
-            valid.Equals(status, StringComparison.OrdinalIgnoreCase));
+    private static bool IsValidStatus(string status) => ValidStatuses.Any(valid => valid.Equals(status, StringComparison.OrdinalIgnoreCase));
 
-    private static string NormalizeStatus(string status) =>
-        status.Trim().ToLowerInvariant() switch
-        {
-            "online" => "Online",
-            "offline" => "Offline",
-            "maintenance" => "Maintenance",
-            _ => status.Trim()
-        };
+    private static string NormalizeStatus(string status) => status.Trim().ToLowerInvariant() switch
+    {
+        "online" => "Online",
+        "offline" => "Offline",
+        "maintenance" => "Maintenance",
+        _ => status.Trim()
+    };
 }
