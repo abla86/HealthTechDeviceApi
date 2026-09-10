@@ -17,12 +17,17 @@ import {
   Bell,
   Cpu,
   User,
-  Info
+  Info,
+  BellRing,
+  AlertOctagon,
+  X,
+  Radio
 } from 'lucide-react';
 import { SeniorModeView } from './components/SeniorModeView';
 import { StorageDiagnostics } from './components/StorageDiagnostics';
 import { HealthMonitorView } from './components/HealthMonitorView';
 import { ArchitectureSolutionView } from './components/ArchitectureSolutionView';
+import { LogAndAlertsView } from './components/LogAndAlertsView';
 import { 
   INITIAL_MICROSD_METRICS, 
   INITIAL_NVME_METRICS, 
@@ -31,12 +36,13 @@ import {
   INITIAL_SCHEDULE, 
   INITIAL_CLIMATE, 
   INITIAL_VITALS, 
-  INITIAL_LOGS 
+  INITIAL_LOGS,
+  INITIAL_ALERTS
 } from './data/mockData';
-import { StorageMetrics, StorageMedium, SystemLogEntry } from './types';
+import { StorageMetrics, StorageMedium, SystemLogEntry, SeniorContact, VisualAlert, LogLevel, LogSource } from './types';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'senior' | 'storage' | 'health' | 'architecture'>('senior');
+  const [activeTab, setActiveTab] = useState<'senior' | 'storage' | 'health' | 'alerts' | 'architecture'>('senior');
   const [currentMedium, setCurrentMedium] = useState<StorageMedium>('microSD');
   const [storageMetrics, setStorageMetrics] = useState<StorageMetrics>(INITIAL_MICROSD_METRICS);
   const [contacts] = useState(INITIAL_CONTACTS);
@@ -45,6 +51,7 @@ export default function App() {
   const [climate, setClimate] = useState(INITIAL_CLIMATE);
   const [vitals, setVitals] = useState(INITIAL_VITALS);
   const [logs, setLogs] = useState<SystemLogEntry[]>(INITIAL_LOGS);
+  const [alerts, setAlerts] = useState<VisualAlert[]>(INITIAL_ALERTS);
   const [lastCheckedIn, setLastCheckedIn] = useState<string>('14:28');
   const [hasCheckedInToday, setHasCheckedInToday] = useState<boolean>(true);
   const [isScanningSmart, setIsScanningSmart] = useState<boolean>(false);
@@ -59,7 +66,7 @@ export default function App() {
     }, 4000);
   };
 
-  const addLog = (level: SystemLogEntry['level'], source: SystemLogEntry['source'], message: string) => {
+  const addLog = (level: LogLevel, source: LogSource, message: string, details?: string) => {
     const now = new Date();
     const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
     const newEntry: SystemLogEntry = {
@@ -67,20 +74,105 @@ export default function App() {
       timestamp: timeStr,
       level,
       source,
-      message
+      message,
+      details
     };
-    setLogs(prev => [newEntry, ...prev.slice(0, 49)]);
+    setLogs(prev => [newEntry, ...prev.slice(0, 69)]);
   };
+
+  // Dismiss visual alert
+  const handleDismissAlert = (alertId: string) => {
+    setAlerts(prev => prev.map(a => a.id === alertId ? { ...a, dismissed: true } : a));
+    const target = alerts.find(a => a.id === alertId);
+    if (target) {
+      addLog('info', 'VARSELSYSTEM', `Visuelt varsel kvittert ut: "${target.title}"`);
+    }
+    triggerToast('Varsel er kvittert ut');
+  };
+
+  // Add custom or manual log entry
+  const handleAddLog = (level: LogLevel, source: LogSource, message: string, details?: string) => {
+    addLog(level, source, message, details);
+    triggerToast(`Loggført: [${level.toUpperCase()}] ${message.slice(0, 36)}...`);
+  };
+
+  // Trigger test visual alerts
+  const handleTriggerTestAlert = (type: 'fall' | 'hardware' | 'emergency' | 'medication') => {
+    const now = new Date();
+    const timeStr = `I dag kl. ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+    if (type === 'fall') {
+      handleTriggerSimulatedFall();
+    } else if (type === 'hardware') {
+      const newAlert: VisualAlert = {
+        id: `alert-hw-${Date.now()}`,
+        severity: 'warning',
+        title: 'Kritisk maskinvarevarsel: MicroSD slitasje 26%',
+        description: 'MicroSD /dev/mmcblk0 nærmer seg maksimal TBW-grense. Høy risiko for skrivefeil og korrupsjon.',
+        timestamp: timeStr,
+        source: 'hardware',
+        actionLabel: 'Konfigurer SSD / log2ram',
+        targetTab: 'storage',
+        dismissed: false
+      };
+      setAlerts(prev => [newAlert, ...prev]);
+      addLog('warn', 'STORAGE_DAEMON', 'Visuelt maskinvarevarsel simulert: MicroSD 26% levetid.');
+      triggerToast('Visuelt varsel aktivert: MicroSD slitasje');
+    } else if (type === 'emergency') {
+      handleTriggerAlarm();
+    } else if (type === 'medication') {
+      const newAlert: VisualAlert = {
+        id: `alert-med-${Date.now()}`,
+        severity: 'reminder',
+        title: 'Medisinpåminnelse: Kveldsmedisin ubesvart',
+        description: 'Planlagt tidspunkt er passert. Dosettkammer er ennå ikke registrert åpnet.',
+        timestamp: timeStr,
+        source: 'medication',
+        actionLabel: 'Se medisinplan',
+        targetTab: 'senior',
+        dismissed: false
+      };
+      setAlerts(prev => [newAlert, ...prev]);
+      addLog('warn', 'HEALTH_BLE', 'Visuelt påminnelsesvarsel: Ubesvart medisinering.');
+      triggerToast('Visuelt varsel aktivert: Medisinpåminnelse');
+    }
+  };
+
+  const handleClearLogs = () => {
+    setLogs([]);
+    triggerToast('Hendelseslogg er tømt');
+  };
+
+  // Active alerts calculations
+  const activeAlerts = alerts.filter(a => !a.dismissed);
+  const activeCriticalAlerts = activeAlerts.filter(a => a.severity === 'critical');
+  const topAlert = activeCriticalAlerts.length > 0 ? activeCriticalAlerts[0] : activeAlerts[0];
 
   // Toggle storage medium (SD vs NVMe SSD)
   const handleToggleMedium = (medium: StorageMedium) => {
     setCurrentMedium(medium);
+    const now = new Date();
+    const timeStr = `I dag kl. ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
     if (medium === 'microSD') {
       setStorageMetrics(INITIAL_MICROSD_METRICS);
+      const hwAlert: VisualAlert = {
+        id: `alert-hw-${Date.now()}`,
+        severity: 'warning',
+        title: 'Maskinvarevarsel: MicroSD slitasje på 26% levetid',
+        description: 'Aktivt minnekort /dev/mmcblk0 har nådd 18.4 av 25 TBW. Risiko for korrupsjon ved strømbrudd. Anbefalt: Bytt til NVMe SSD eller aktiver log2ram.',
+        timestamp: timeStr,
+        source: 'hardware',
+        actionLabel: 'Sjekk lagringshelse',
+        targetTab: 'storage',
+        dismissed: false
+      };
+      setAlerts(prev => [hwAlert, ...prev.filter(a => a.source !== 'hardware')]);
       addLog('warn', 'STORAGE_DAEMON', 'Byttet til aktiv lagring: SanDisk Ultra 32GB MicroSD. Advarsel: Lav utholdenhet.');
       triggerToast('Aktiv lagring endret til MicroSD (Høy slitasjerisiko)');
     } else {
       setStorageMetrics(INITIAL_NVME_METRICS);
+      setAlerts(prev => prev.map(a => a.source === 'hardware' ? { ...a, dismissed: true } : a));
       addLog('success', 'STORAGE_DAEMON', 'Byttet til aktiv lagring: Industriell M.2 NVMe SSD. Slitasjehelse: 94% optimal.');
       triggerToast('Aktiv lagring endret til NVMe SSD (Maksimal stabilitet)');
     }
@@ -149,19 +241,63 @@ export default function App() {
 
   // Senior or simulated alarm
   const handleTriggerAlarm = () => {
+    const now = new Date();
+    const timeStr = `I dag kl. ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const newAlert: VisualAlert = {
+      id: `alert-sos-${Date.now()}`,
+      severity: 'critical',
+      title: 'AKUTT NØDALARM: Utløst av bruker!',
+      description: 'Senior har trykket på den store nødknappen på skjermen. Alle 3 nødkontakter og vaktsentral varsles umiddelbart via SMS og talesamtale.',
+      timestamp: timeStr,
+      source: 'emergency',
+      actionLabel: 'Gå til Seniormodus',
+      targetTab: 'senior',
+      dismissed: false
+    };
+    setAlerts(prev => [newAlert, ...prev]);
     addLog('error', 'SENIOR_UI', 'AKUTT NØDALARM utløst fra berøringsskjerm! Pårørende og alarmsentral varsles.');
-    triggerToast('AKUTT ALARM UTKALT! Pårørende ringes opp.');
+    triggerToast('🚨 AKUTT ALARM UTKALT! Pårørende ringes opp.');
+  };
+
+  // Senior sends emergency or quick message to contact
+  const handleSendMessage = (contactName: string, message: string, isEmergency: boolean) => {
+    addLog(
+      isEmergency ? 'warn' : 'info',
+      'SENIOR_UI',
+      `${isEmergency ? 'NØDMELDING' : 'Melding'} sendt til ${contactName}: "${message}" via SMS-gateway.`
+    );
+    triggerToast(`${isEmergency ? 'Nødmelding' : 'Melding'} levert til ${contactName}`);
+  };
+
+  // Senior calls a contact
+  const handleStartCall = (contact: SeniorContact) => {
+    addLog('info', 'SENIOR_UI', `Oppringning initiert til ${contact.name} (${contact.phone}).`);
+    triggerToast(`Ringer opp ${contact.name}...`);
   };
 
   // Health Fall simulation
   const handleTriggerSimulatedFall = () => {
+    const now = new Date();
+    const timeStr = `I dag kl. ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
     setVitals(prev => ({
       ...prev,
       fallDetected: true,
       lastMovementMinutesAgo: 0
     }));
+    const newAlert: VisualAlert = {
+      id: `alert-fall-${Date.now()}`,
+      severity: 'critical',
+      title: 'KRITISK: Fall detektert i stuen!',
+      description: 'mmWave fallradar har registrert plutselig fall mot gulvflate. Ingen bevegelse de siste minuttene. Hjemmesykepleien og pårørende er varslet.',
+      timestamp: timeStr,
+      source: 'fall',
+      actionLabel: 'Undersøk helsesensorer',
+      targetTab: 'health',
+      dismissed: false
+    };
+    setAlerts(prev => [newAlert, ...prev]);
     addLog('error', 'FALL_RADAR', 'mmWave sensor varsler: Hurtig fall mot gulvflate registrert i stue.');
-    triggerToast('Fallalarm utløst fra mmWave radarsensor!');
+    triggerToast('🚨 KRITISK FALLALARM AKTIVERT!');
   };
 
   const handleResetFallAlert = () => {
@@ -169,7 +305,8 @@ export default function App() {
       ...prev,
       fallDetected: false
     }));
-    addLog('info', 'FALL_RADAR', 'Fallalarm manuelt nullstilt etter verifisering.');
+    setAlerts(prev => prev.map(a => a.source === 'fall' ? { ...a, dismissed: true } : a));
+    addLog('success', 'FALL_RADAR', 'Fallalarm manuelt nullstilt. Normal situasjon bekreftet.');
     triggerToast('Fallalarm er nullstilt.');
   };
 
@@ -278,7 +415,28 @@ export default function App() {
                 )}
               </button>
 
-              {/* Tab 4: Teknisk Arkitektur & Stack */}
+              {/* Tab 4: Visuelle Varsler & Hendelseslogg */}
+              <button
+                id="nav-alerts-mode"
+                onClick={() => setActiveTab('alerts')}
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all shrink-0 ${
+                  activeTab === 'alerts'
+                    ? 'bg-white text-rose-900 shadow-sm'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <BellRing className={`w-4 h-4 ${activeTab === 'alerts' ? 'text-rose-600' : 'text-slate-500'}`} />
+                <span>Varsler &amp; Logg</span>
+                {activeAlerts.length > 0 && (
+                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black text-white ${
+                    activeCriticalAlerts.length > 0 ? 'bg-rose-600 animate-pulse' : 'bg-amber-600'
+                  }`}>
+                    {activeAlerts.length}
+                  </span>
+                )}
+              </button>
+
+              {/* Tab 5: Teknisk Arkitektur & Stack */}
               <button
                 id="nav-architecture-mode"
                 onClick={() => setActiveTab('architecture')}
@@ -313,13 +471,100 @@ export default function App() {
                 title="Vis telemetrilogg i sanntid"
               >
                 <Bell className="w-4 h-4" />
-                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-teal-500" />
+                {activeAlerts.length > 0 && (
+                  <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full ${
+                    activeCriticalAlerts.length > 0 ? 'bg-rose-600 animate-pulse' : 'bg-amber-500'
+                  }`} />
+                )}
               </button>
             </div>
 
           </div>
         </div>
       </nav>
+
+      {/* Global Visual Alert Banner (shown across all tabs when an active critical/warning alert is pending) */}
+      {topAlert && activeTab !== 'alerts' && (
+        <div 
+          id={`global-alert-banner-${topAlert.id}`}
+          className={`w-full border-b transition-all ${
+            topAlert.severity === 'critical' 
+              ? 'bg-rose-600 text-white border-rose-700' 
+              : topAlert.severity === 'warning'
+              ? 'bg-amber-500 text-slate-950 border-amber-600'
+              : 'bg-indigo-600 text-white border-indigo-700'
+          }`}
+        >
+          <div className="max-w-7xl mx-auto px-4 py-2.5 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="flex items-center gap-3 w-full sm:w-auto">
+              <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 shadow-sm ${
+                topAlert.severity === 'critical' 
+                  ? 'bg-white text-rose-600 animate-bounce' 
+                  : topAlert.severity === 'warning' 
+                  ? 'bg-slate-950 text-amber-400' 
+                  : 'bg-white text-indigo-600'
+              }`}>
+                {topAlert.severity === 'critical' ? (
+                  <AlertOctagon className="w-5 h-5" />
+                ) : (
+                  <AlertTriangle className="w-5 h-5" />
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className={`text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider ${
+                    topAlert.severity === 'critical' ? 'bg-white/20 text-white' : 'bg-slate-950 text-white'
+                  }`}>
+                    {topAlert.severity === 'critical' ? 'Kritisk visuelt varsel' : 'Visuelt maskinvarevarsel'}
+                  </span>
+                  <span className={`text-[11px] font-mono ${
+                    topAlert.severity === 'warning' ? 'text-slate-900 font-semibold' : 'text-white/80'
+                  }`}>
+                    {topAlert.timestamp}
+                  </span>
+                </div>
+                <p className="text-xs sm:text-sm font-extrabold truncate mt-0.5">
+                  {topAlert.title}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+              {topAlert.targetTab && (
+                <button
+                  onClick={() => setActiveTab(topAlert.targetTab!)}
+                  className={`text-xs font-bold px-3 py-1.5 rounded-lg shadow-xs transition-colors ${
+                    topAlert.severity === 'warning'
+                      ? 'bg-slate-950 hover:bg-slate-850 text-white'
+                      : 'bg-white/20 hover:bg-white/30 text-white'
+                  }`}
+                >
+                  {topAlert.actionLabel || 'Undersøk'}
+                </button>
+              )}
+              <button
+                onClick={() => setActiveTab('alerts')}
+                className={`text-xs font-bold px-3 py-1.5 rounded-lg shadow-xs transition-colors ${
+                  topAlert.severity === 'warning'
+                    ? 'bg-white hover:bg-slate-100 text-slate-950 font-black'
+                    : 'bg-white hover:bg-slate-100 text-slate-900 font-black'
+                }`}
+              >
+                Åpne varselsenter &amp; logg
+              </button>
+              <button
+                onClick={() => handleDismissAlert(topAlert.id)}
+                className={`p-1.5 rounded-lg transition-colors ${
+                  topAlert.severity === 'warning' ? 'text-slate-850 hover:bg-amber-600/30' : 'text-white/80 hover:bg-white/20'
+                }`}
+                title="Lukk varsel"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main Content Area */}
       <main className="flex-1 py-4">
@@ -332,8 +577,12 @@ export default function App() {
             onConfirmImOk={handleConfirmImOk}
             onTakeMedication={handleTakeMedication}
             onTriggerAlarm={handleTriggerAlarm}
+            onSendMessage={handleSendMessage}
+            onStartCall={handleStartCall}
             lastCheckedIn={lastCheckedIn}
             hasCheckedInToday={hasCheckedInToday}
+            activeAlerts={alerts}
+            onDismissAlert={handleDismissAlert}
           />
         )}
 
@@ -355,6 +604,18 @@ export default function App() {
             medications={medications}
             onTriggerSimulatedFall={handleTriggerSimulatedFall}
             onResetFallAlert={handleResetFallAlert}
+          />
+        )}
+
+        {activeTab === 'alerts' && (
+          <LogAndAlertsView
+            logs={logs}
+            alerts={alerts}
+            onAddLog={handleAddLog}
+            onDismissAlert={handleDismissAlert}
+            onTriggerTestAlert={handleTriggerTestAlert}
+            onNavigateTab={(tab) => setActiveTab(tab)}
+            onClearLogs={handleClearLogs}
           />
         )}
 

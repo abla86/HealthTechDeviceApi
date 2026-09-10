@@ -28,6 +28,17 @@ export interface SeniorContact {
   phone: string;
   avatarBg: string;
   initials: string;
+  statusBadge?: string;
+}
+
+export interface EmergencyMessageEvent {
+  id: string;
+  recipientId: string;
+  recipientName: string;
+  message: string;
+  timestamp: string;
+  status: 'sent' | 'delivered' | 'read';
+  isEmergency: boolean;
 }
 
 export interface MedicationItem {
@@ -65,10 +76,26 @@ export interface HealthVitals {
   stepsToday: number;
 }
 
+export type LogLevel = 'info' | 'warn' | 'error' | 'success';
+export type LogSource = 'STORAGE_DAEMON' | 'HEALTH_BLE' | 'SENIOR_UI' | 'FALL_RADAR' | 'PLEIE_NOTAT' | 'VARSELSYSTEM';
+
 export interface SystemLogEntry {
   id: string;
   timestamp: string;
-  level: 'info' | 'warn' | 'error' | 'success';
-  source: 'STORAGE_DAEMON' | 'HEALTH_BLE' | 'SENIOR_UI' | 'FALL_RADAR';
+  level: LogLevel;
+  source: LogSource;
   message: string;
+  details?: string;
+}
+
+export interface VisualAlert {
+  id: string;
+  severity: 'critical' | 'warning' | 'reminder' | 'info';
+  title: string;
+  description: string;
+  timestamp: string;
+  source: 'fall' | 'hardware' | 'emergency' | 'medication' | 'climate';
+  actionLabel?: string;
+  targetTab?: 'senior' | 'storage' | 'health';
+  dismissed?: boolean;
 }

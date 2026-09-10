@@ -1,4 +1,4 @@
-import { StorageMetrics, SeniorContact, MedicationItem, ScheduleEvent, IndoorClimate, HealthVitals, SystemLogEntry } from '../types';
+import { StorageMetrics, SeniorContact, MedicationItem, ScheduleEvent, IndoorClimate, HealthVitals, SystemLogEntry, EmergencyMessageEvent, VisualAlert } from '../types';
 
 export const INITIAL_MICROSD_METRICS: StorageMetrics = {
   medium: 'microSD',
@@ -49,7 +49,8 @@ export const INITIAL_CONTACTS: SeniorContact[] = [
     relation: 'Pårørende / Primærkontakt',
     phone: '+47 912 34 567',
     avatarBg: 'bg-emerald-600',
-    initials: 'IN'
+    initials: 'IN',
+    statusBadge: 'Tilgjengelig nå'
   },
   {
     id: '2',
@@ -57,7 +58,8 @@ export const INITIAL_CONTACTS: SeniorContact[] = [
     relation: 'Pårørende',
     phone: '+47 988 76 543',
     avatarBg: 'bg-blue-600',
-    initials: 'HE'
+    initials: 'HE',
+    statusBadge: 'Tilgjengelig (på jobb)'
   },
   {
     id: '3',
@@ -65,7 +67,20 @@ export const INITIAL_CONTACTS: SeniorContact[] = [
     relation: 'Vakttelefon Sone Sentrum',
     phone: '+47 33 00 11 22',
     avatarBg: 'bg-teal-700',
-    initials: 'HS'
+    initials: 'HS',
+    statusBadge: 'Døgnbemannet vakt'
+  }
+];
+
+export const INITIAL_EMERGENCY_MESSAGES: EmergencyMessageEvent[] = [
+  {
+    id: 'msg-1',
+    recipientId: '1',
+    recipientName: 'Ingrid (Datter)',
+    message: 'Jeg har tatt morgenmedisin og har det fint.',
+    timestamp: 'I dag kl. 08:35',
+    status: 'delivered',
+    isEmergency: false
   }
 ];
 
@@ -172,5 +187,30 @@ export const INITIAL_LOGS: SystemLogEntry[] = [
     level: 'success',
     source: 'HEALTH_BLE',
     message: 'Smart dosett lokk åpnet og lukket for kammer 2. Registrert som inntatt.'
+  }
+];
+
+export const INITIAL_ALERTS: VisualAlert[] = [
+  {
+    id: 'alert-hw-1',
+    severity: 'warning',
+    title: 'Maskinvarevarsel: MicroSD slitasje på 26% levetid',
+    description: 'Aktivt minnekort /dev/mmcblk0 har nådd 18.4 av 25 TBW. Risiko for korrupsjon ved strømbrudd. Anbefalt: Bytt til NVMe SSD eller aktiver log2ram.',
+    timestamp: 'I dag kl. 14:32',
+    source: 'hardware',
+    actionLabel: 'Sjekk lagringshelse',
+    targetTab: 'storage',
+    dismissed: false
+  },
+  {
+    id: 'alert-med-1',
+    severity: 'reminder',
+    title: 'Medisinpåminnelse: Kveldsmedisin gjenstår (kl. 20:00)',
+    description: 'Dosett rom 3 (Melatonin) er ikke registrert inntatt ennå.',
+    timestamp: 'I dag kl. 14:00',
+    source: 'medication',
+    actionLabel: 'Se medisiner',
+    targetTab: 'senior',
+    dismissed: false
   }
 ];
