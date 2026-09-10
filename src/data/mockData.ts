@@ -1,4 +1,18 @@
-import { StorageMetrics, SeniorContact, MedicationItem, ScheduleEvent, IndoorClimate, HealthVitals, SystemLogEntry, EmergencyMessageEvent, VisualAlert } from '../types';
+import { 
+  StorageMetrics, 
+  SeniorContact, 
+  MedicationItem, 
+  ScheduleEvent, 
+  IndoorClimate, 
+  HealthVitals, 
+  SystemLogEntry, 
+  EmergencyMessageEvent, 
+  VisualAlert,
+  UserProfile,
+  ConsentItem,
+  AuditLogEntry,
+  SecurityStatus
+} from '../types';
 
 export const INITIAL_MICROSD_METRICS: StorageMetrics = {
   medium: 'microSD',
@@ -214,3 +228,143 @@ export const INITIAL_ALERTS: VisualAlert[] = [
     dismissed: false
   }
 ];
+
+export const USER_PROFILES: Record<string, UserProfile> = {
+  senior: {
+    id: 'usr-senior',
+    role: 'senior',
+    name: 'Kari Nordmann (82)',
+    title: 'Beboer / Bruker',
+    securityLevel: 'Seniormodus (Kiosk PIN-beskyttet)',
+    sessionExpires: 'Aktiv enhet'
+  },
+  relative: {
+    id: 'usr-relative',
+    role: 'relative',
+    name: 'Ingrid Nordmann',
+    title: 'Pårørende / Datter',
+    securityLevel: 'BankID Nivå 4 (To-faktor)',
+    sessionExpires: '28 minutter'
+  },
+  nurse: {
+    id: 'usr-nurse',
+    role: 'nurse',
+    name: 'Sykepleier Anne Berg',
+    title: 'Hjemmesykepleien Sone Sentrum',
+    hprNumber: 'HPR-9482103',
+    securityLevel: 'HelseID / Buypass Nivå 4 (PKI-kort)',
+    sessionExpires: '12 minutter'
+  },
+  admin: {
+    id: 'usr-admin',
+    role: 'admin',
+    name: 'Lars Hansen',
+    title: 'Sertifisert Medisinsk-Teknisk IT-ingeniør',
+    securityLevel: 'YubiKey FIDO2 + mTLS Sertifikat',
+    sessionExpires: '8 minutter'
+  }
+};
+
+export const INITIAL_SECURITY_STATUS: SecurityStatus = {
+  encryptionAtRest: true, // LUKS2 AES-XTS-256
+  encryptionInTransit: true, // TLS 1.3 mTLS med HelseID
+  tpmAttestation: 'VERIFIED',
+  secureBootEnabled: true,
+  kioskPinLocked: false,
+  normenCompliancePercent: 98,
+  tamperSensorStatus: 'OK_SEALED',
+  offlineZeroLeakMode: true
+};
+
+export const INITIAL_CONSENTS: ConsentItem[] = [
+  {
+    id: 'consent-radar',
+    title: 'mmWave Fallradar og Tilstedeværelse',
+    description: 'Anonymisert radarmonitorering i rom (ingen kamera/optisk video). Registrerer plutselig fall og uvanlig inaktivitet i sanntid.',
+    category: 'sikkerhet',
+    granted: true,
+    legalBasis: 'GDPR Art. 6(1)(a) Uttrykkelig samtykke & Pasient- og brukerrettighetsloven § 4-1',
+    dataRetentionDays: 1, // Edge minimerer, rådata slettes etter 24 timer
+    lastUpdated: '12.01.2026'
+  },
+  {
+    id: 'consent-relative-sharing',
+    title: 'Deling av trygghetsstatus med pårørende (Ingrid & Henrik)',
+    description: 'Gir datter og sønn innsyn i daglig «Jeg har det bra»-status, nødmeldinger og dagsplan. Skjermer sensitive medisinske diagnoser.',
+    category: 'pårørende',
+    granted: true,
+    legalBasis: 'GDPR Art. 6(1)(a) Samtykke til deling med utvalgte nærstående',
+    dataRetentionDays: 30,
+    lastUpdated: '15.01.2026'
+  },
+  {
+    id: 'consent-vitals-nursing',
+    title: 'Helsedata & Dosett-status til Hjemmesykepleien',
+    description: 'Overfører puls, spO2 og registrert åpning av medisindosett til kommunens helsejournal (VKP/EPJ) via sikret Helsenett-kanal.',
+    category: 'helse',
+    granted: true,
+    legalBasis: 'Helsepersonelloven § 21 / Pasientjournalloven § 6',
+    dataRetentionDays: 365,
+    lastUpdated: '10.01.2026'
+  },
+  {
+    id: 'consent-hardware-telemetry',
+    title: 'Maskinvare-telemetri (S.M.A.R.T. og slitasjeovervåking)',
+    description: 'Pseudonymisert feilsøking for å forhindre datakorrupsjon og krasj på grunn av minnekort/SSD-slitasje.',
+    category: 'telemetri',
+    granted: true,
+    legalBasis: 'GDPR Art. 6(1)(f) Berettiget interesse for stabil pasientsikkerhet',
+    dataRetentionDays: 90,
+    lastUpdated: '01.01.2026'
+  }
+];
+
+export const INITIAL_AUDIT_LOG: AuditLogEntry[] = [
+  {
+    id: 'aud-001',
+    timestamp: 'I dag kl. 14:45:10',
+    actorName: 'Sykepleier Anne Berg',
+    actorRole: 'nurse',
+    actorHprNumber: 'HPR-9482103',
+    action: 'READ',
+    resource: 'MEDISINER',
+    justification: 'Kontroll av ettermiddagsdose og dosett-integritet',
+    ipAddress: '10.140.22.4 (VKP Helsenett)',
+    verified: true
+  },
+  {
+    id: 'aud-002',
+    timestamp: 'I dag kl. 14:30:15',
+    actorName: 'Ingrid Nordmann',
+    actorRole: 'relative',
+    action: 'READ',
+    resource: 'KONTAKTER',
+    justification: 'Innsyn i daglig trygghetsinnsjekk og kalender',
+    ipAddress: '84.212.19.82 (BankID N4)',
+    verified: true
+  },
+  {
+    id: 'aud-003',
+    timestamp: 'I dag kl. 13:12:00',
+    actorName: 'Lars Hansen',
+    actorRole: 'admin',
+    action: 'READ',
+    resource: 'SYSTEM_CONFIG',
+    justification: 'S.M.A.R.T.-helsekontroll og slitasjeinspeksjon for lagring',
+    ipAddress: '10.140.1.18 (SSH mTLS)',
+    verified: true
+  },
+  {
+    id: 'aud-004',
+    timestamp: 'I går kl. 19:20:00',
+    actorName: 'Sykepleier Anne Berg',
+    actorRole: 'nurse',
+    actorHprNumber: 'HPR-9482103',
+    action: 'UPDATE',
+    resource: 'MEDISINER',
+    justification: 'Oppdatert kveldsdose for dosett rom 3 (Melatonin)',
+    ipAddress: '10.140.22.4 (VKP Helsenett)',
+    verified: true
+  }
+];
+

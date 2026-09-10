@@ -21,13 +21,18 @@ import {
   BellRing,
   AlertOctagon,
   X,
-  Radio
+  Radio,
+  ShieldCheck,
+  Lock,
+  Key,
+  Shield
 } from 'lucide-react';
 import { SeniorModeView } from './components/SeniorModeView';
 import { StorageDiagnostics } from './components/StorageDiagnostics';
 import { HealthMonitorView } from './components/HealthMonitorView';
 import { ArchitectureSolutionView } from './components/ArchitectureSolutionView';
 import { LogAndAlertsView } from './components/LogAndAlertsView';
+import { SecurityAndGdprView } from './components/SecurityAndGdprView';
 import { 
   INITIAL_MICROSD_METRICS, 
   INITIAL_NVME_METRICS, 
@@ -37,12 +42,41 @@ import {
   INITIAL_CLIMATE, 
   INITIAL_VITALS, 
   INITIAL_LOGS,
-  INITIAL_ALERTS
+  INITIAL_ALERTS,
+  USER_PROFILES,
+  INITIAL_SECURITY_STATUS,
+  INITIAL_CONSENTS,
+  INITIAL_AUDIT_LOG
 } from './data/mockData';
-import { StorageMetrics, StorageMedium, SystemLogEntry, SeniorContact, VisualAlert, LogLevel, LogSource } from './types';
+import { 
+  StorageMetrics, 
+  StorageMedium, 
+  SystemLogEntry, 
+  SeniorContact, 
+  VisualAlert, 
+  LogLevel, 
+  LogSource,
+  UserRole,
+  UserProfile,
+  ConsentItem,
+  AuditLogEntry,
+  SecurityStatus
+} from './types';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'senior' | 'storage' | 'health' | 'alerts' | 'architecture'>('senior');
+  const [activeTab, setActiveTab] = useState<'senior' | 'storage' | 'health' | 'alerts' | 'security' | 'architecture'>('senior');
+  const [currentRole, setCurrentRole] = useState<UserRole>('senior');
+  const [userProfiles] = useState<Record<string, UserProfile>>(USER_PROFILES);
+  const [securityStatus, setSecurityStatus] = useState<SecurityStatus>(INITIAL_SECURITY_STATUS);
+  const [consents, setConsents] = useState<ConsentItem[]>(INITIAL_CONSENTS);
+  const [auditLog, setAuditLog] = useState<AuditLogEntry[]>(INITIAL_AUDIT_LOG);
+  const [kioskPin] = useState<string>('1234');
+  const [isKioskLocked, setIsKioskLocked] = useState<boolean>(false);
+  const [showKioskPinModal, setShowKioskPinModal] = useState<boolean>(false);
+  const [pendingTab, setPendingTab] = useState<'senior' | 'storage' | 'health' | 'alerts' | 'security' | 'architecture' | null>(null);
+  const [kioskPinInput, setKioskPinInput] = useState<string>('');
+  const [kioskPinError, setKioskPinError] = useState<string>('');
+
   const [currentMedium, setCurrentMedium] = useState<StorageMedium>('microSD');
   const [storageMetrics, setStorageMetrics] = useState<StorageMetrics>(INITIAL_MICROSD_METRICS);
   const [contacts] = useState(INITIAL_CONTACTS);
@@ -142,6 +176,175 @@ export default function App() {
     setLogs([]);
     triggerToast('Hendelseslogg er tømt');
   };
+
+  // Navigate with Kiosk PIN guard
+  const handleNavigateTab = (tab: 'senior' | 'storage' | 'health' | 'alerts' | 'security' | 'architecture') => {
+    if (isKioskLocked && activeTab === 'senior' && tab !== 'senior') {
+      setPendingTab(tab);
+      setKioskPinInput('');
+      setKioskPinError('');
+      setShowKioskPinModal(true);
+      return;
+    }
+    setActiveTab(tab);
+  };
+
+  const handleUnlockKioskPin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (kioskPinInput === kioskPin || kioskPinInput === '1234') {
+      setShowKioskPinModal(false);
+      if (pendingTab) {
+        setActiveTab(pendingTab);
+        setPendingTab(null);
+      }
+      addLog('info', 'SENIOR_UI', 'Kiosk PIN-lås verifisert. Navigasjon godkjent.');
+    } else {
+      setKioskPinError('Feil PIN-kode. Standard demo-kode er 1234.');
+    }
+  };
+
+  // Toggle user consent (GDPR Art. 7)
+  const handleToggleConsent = (consentId: string) => {
+    setConsents(prev => prev.map(c => {
+      if (c.id === consentId) {
+        const newStatus = !c.granted;
+        const actionStr = newStatus ? 'GITT' : 'TILBAKEKALT';
+        addLog('info', 'VARSELSYSTEM', `GDPR Samtykke ${actionStr}: "${c.title}"`);
+        
+        // Append to audit trail
+        const now = new Date();
+        const timeStr = `I dag kl. ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+        const newAudit: AuditLogEntry = {
+          id: `aud-${Date.now()}`,
+          timestamp: timeStr,
+          actorName: userProfiles[currentRole]?.name || 'Bruker',
+          actorRole: currentRole,
+          action: 'UPDATE',
+          resource: 'SYSTEM_CONFIG',
+          justification: `Endret samtykkestatus til: ${actionStr} (GDPR Art. 7)`,
+          ipAddress: '127.0.0.1 (Lokal Kiosk)',
+          verified: true
+        };
+        setAuditLog(audPrev => [newAudit, ...audPrev]);
+
+        triggerToast(`Samtykke ${actionStr.toLowerCase()}: ${c.title}`);
+        return { ...c, granted: newStatus, lastUpdated: 'I dag' };
+      }
+      return c;
+    }));
+  };
+
+  // Toggle Kiosk PIN lock
+  const handleToggleKioskLock = (enable: boolean) => {
+    setIsKioskLocked(enable);
+    setSecurityStatus(prev => ({ ...prev, kioskPinLocked: enable }));
+    addLog('info', 'SENIOR_UI', `Seniormodus PIN-lås ${enable ? 'AKTIVERT' : 'DEAKTIVERT'}. Sikkerhetskode: ${kioskPin}`);
+    triggerToast(enable ? 'Kiosk PIN-lås aktivert' : 'Kiosk PIN-lås deaktivert');
+  };
+
+  // GDPR Art. 15 Data Export
+  const handleExportGdprData = () => {
+    const exportPayload = {
+      gdprStatement: 'Innsynsbegjæring i henhold til personvernforordningen (GDPR) Art. 15 og 20',
+      exportedAt: new Date().toISOString(),
+      patient: {
+        id: 'patient-kari-nordmann-82',
+        name: 'Kari Nordmann',
+        birthYear: 1944,
+        residenceType: 'Kommunal omsorgsleilighet',
+        carePlan: 'Velferdsteknologisk trygghetspakke 3'
+      },
+      consents: consents,
+      vitalsTelemetri: vitals,
+      climateSensorer: climate,
+      medisineringDosett: medications,
+      pårørendeKontakter: contacts,
+      auditLogg: auditLog,
+      maskinvareStatus: {
+        medium: storageMetrics.medium,
+        luks2Kryptert: true,
+        tpm2Attestert: true,
+        normenVersjon: 'Normen 6.0'
+      }
+    };
+
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportPayload, null, 2));
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("download", `kari-nordmann-helsedata-gdpr-innsyn-${Date.now()}.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+
+    // Log to audit trail
+    const now = new Date();
+    const timeStr = `I dag kl. ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+    const newAudit: AuditLogEntry = {
+      id: `aud-${Date.now()}`,
+      timestamp: timeStr,
+      actorName: userProfiles[currentRole]?.name || 'Bruker',
+      actorRole: currentRole,
+      action: 'EXPORT',
+      resource: 'VITALE_TEGN',
+      justification: 'GDPR Art. 15 & 20 Fullstendig pasientdatauttrekk generert',
+      ipAddress: '127.0.0.1 (Kryptert nedlasting)',
+      verified: true
+    };
+    setAuditLog(prev => [newAudit, ...prev]);
+    addLog('success', 'SENIOR_UI', 'Fullstendig pasientdatauttrekk generert og lastet ned (GDPR Art. 15).');
+    triggerToast('Pasientdatauttrekk (.JSON) lastet ned!');
+  };
+
+  // Crypto Erase / GDPR Art. 17
+  const handleExecuteCryptoErase = () => {
+    const now = new Date();
+    const timeStr = `I dag kl. ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+    const newAudit: AuditLogEntry = {
+      id: `aud-${Date.now()}`,
+      timestamp: timeStr,
+      actorName: userProfiles[currentRole]?.name || 'Admin',
+      actorRole: currentRole,
+      action: 'DELETE',
+      resource: 'SYSTEM_CONFIG',
+      justification: 'Kryptografisk sanering av TPM master-nøkkel (GDPR Art. 17 / NSM)',
+      ipAddress: '127.0.0.1 (Krypto-sanering)',
+      verified: true
+    };
+    setAuditLog(prev => [newAudit, ...prev]);
+    addLog('error', 'STORAGE_DAEMON', 'KRITISK SIKKERHETSSANERING: TPM 2.0 masterkey destruert. NVMe lagring er sanert iht. NSM.');
+    triggerToast('Sikker krypto-sanering fullført. Master-nøkler er slettet.');
+  };
+
+  // Add manual audit entry
+  const handleAddAuditEntry = (action: AuditLogEntry['action'], resource: AuditLogEntry['resource'], justification: string) => {
+    const now = new Date();
+    const timeStr = `I dag kl. ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+    const profile = userProfiles[currentRole] || userProfiles['nurse'];
+    const newAudit: AuditLogEntry = {
+      id: `aud-${Date.now()}`,
+      timestamp: timeStr,
+      actorName: profile.name,
+      actorRole: currentRole,
+      actorHprNumber: profile.hprNumber,
+      action,
+      resource,
+      justification,
+      ipAddress: currentRole === 'nurse' ? '10.140.22.4 (VKP Helsenett)' : '84.212.19.82 (BankID N4)',
+      verified: true
+    };
+    setAuditLog(prev => [newAudit, ...prev]);
+    addLog('info', currentRole === 'nurse' ? 'PLEIE_NOTAT' : 'SENIOR_UI', `Revisjonsspor ført: [${action}] ${resource} - "${justification}"`);
+    triggerToast('Revisjonsoppslag er loggført');
+  };
+
+  // Change active user role
+  const handleChangeRole = (newRole: UserRole) => {
+    setCurrentRole(newRole);
+    const profile = userProfiles[newRole];
+    addLog('info', 'VARSELSYSTEM', `Aktiv brukerrolle endret til: ${profile.name} (${profile.title})`);
+    triggerToast(`Aktiv rolle: ${profile.name}`);
+  };
+
 
   // Active alerts calculations
   const activeAlerts = alerts.filter(a => !a.dismissed);
@@ -370,7 +573,7 @@ export default function App() {
               {/* Tab 1: Seniormodus */}
               <button
                 id="nav-senior-mode"
-                onClick={() => setActiveTab('senior')}
+                onClick={() => handleNavigateTab('senior')}
                 className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all shrink-0 ${
                   activeTab === 'senior'
                     ? 'bg-white text-teal-900 shadow-sm'
@@ -379,12 +582,15 @@ export default function App() {
               >
                 <Heart className={`w-4 h-4 ${activeTab === 'senior' ? 'text-teal-600 fill-teal-100' : 'text-slate-500'}`} />
                 <span>Seniormodus (Bruker)</span>
+                {isKioskLocked && (
+                  <Lock className="w-3 h-3 text-amber-600" title="Kiosk PIN-lås aktiv" />
+                )}
               </button>
 
               {/* Tab 2: Lagring & Maskinvare */}
               <button
                 id="nav-storage-mode"
-                onClick={() => setActiveTab('storage')}
+                onClick={() => handleNavigateTab('storage')}
                 className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all shrink-0 ${
                   activeTab === 'storage'
                     ? 'bg-white text-blue-900 shadow-sm'
@@ -401,7 +607,7 @@ export default function App() {
               {/* Tab 3: Helseovervåking */}
               <button
                 id="nav-health-mode"
-                onClick={() => setActiveTab('health')}
+                onClick={() => handleNavigateTab('health')}
                 className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all shrink-0 ${
                   activeTab === 'health'
                     ? 'bg-white text-purple-900 shadow-sm'
@@ -418,7 +624,7 @@ export default function App() {
               {/* Tab 4: Visuelle Varsler & Hendelseslogg */}
               <button
                 id="nav-alerts-mode"
-                onClick={() => setActiveTab('alerts')}
+                onClick={() => handleNavigateTab('alerts')}
                 className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all shrink-0 ${
                   activeTab === 'alerts'
                     ? 'bg-white text-rose-900 shadow-sm'
@@ -436,10 +642,27 @@ export default function App() {
                 )}
               </button>
 
-              {/* Tab 5: Teknisk Arkitektur & Stack */}
+              {/* Tab 5: Sikkerhet, GDPR & Pasientvern */}
+              <button
+                id="nav-security-mode"
+                onClick={() => handleNavigateTab('security')}
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all shrink-0 ${
+                  activeTab === 'security'
+                    ? 'bg-white text-indigo-950 shadow-sm'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <ShieldCheck className={`w-4 h-4 ${activeTab === 'security' ? 'text-indigo-600' : 'text-slate-500'}`} />
+                <span>Sikkerhet &amp; GDPR</span>
+                <span className="bg-emerald-100 text-emerald-900 text-[10px] font-black px-1.5 py-0.5 rounded-full border border-emerald-300">
+                  Normen
+                </span>
+              </button>
+
+              {/* Tab 6: Teknisk Arkitektur & Stack */}
               <button
                 id="nav-architecture-mode"
-                onClick={() => setActiveTab('architecture')}
+                onClick={() => handleNavigateTab('architecture')}
                 className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all shrink-0 ${
                   activeTab === 'architecture'
                     ? 'bg-white text-slate-900 shadow-sm'
@@ -451,10 +674,18 @@ export default function App() {
               </button>
             </div>
 
-            {/* Quick Diagnostic Badge & Log Drawer Toggle */}
-            <div className="hidden lg:flex items-center gap-3">
+            {/* Quick Diagnostic Badges & Log Drawer Toggle */}
+            <div className="hidden lg:flex items-center gap-2.5">
               <div 
-                className={`px-3 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-2 ${
+                className="px-2.5 py-1.5 rounded-xl border border-indigo-200 bg-indigo-50 text-indigo-900 text-xs font-bold flex items-center gap-1.5"
+                title="Sikkerhet og personvern iht. Normen 6.0"
+              >
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Normen: 98%</span>
+              </div>
+
+              <div 
+                className={`px-2.5 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-1.5 ${
                   storageMetrics.wearLevelingPercentage > 50 
                     ? 'bg-emerald-50 text-emerald-800 border-emerald-200' 
                     : 'bg-rose-50 text-rose-800 border-rose-200'
@@ -614,8 +845,28 @@ export default function App() {
             onAddLog={handleAddLog}
             onDismissAlert={handleDismissAlert}
             onTriggerTestAlert={handleTriggerTestAlert}
-            onNavigateTab={(tab) => setActiveTab(tab)}
+            onNavigateTab={(tab) => handleNavigateTab(tab)}
             onClearLogs={handleClearLogs}
+          />
+        )}
+
+        {activeTab === 'security' && (
+          <SecurityAndGdprView
+            currentRole={currentRole}
+            userProfiles={userProfiles}
+            securityStatus={securityStatus}
+            consents={consents}
+            auditLog={auditLog}
+            vitals={vitals}
+            medications={medications}
+            kioskPin={kioskPin}
+            isKioskLocked={isKioskLocked}
+            onChangeRole={handleChangeRole}
+            onToggleConsent={handleToggleConsent}
+            onToggleKioskLock={handleToggleKioskLock}
+            onExportGdprData={handleExportGdprData}
+            onExecuteCryptoErase={handleExecuteCryptoErase}
+            onAddAuditEntry={handleAddAuditEntry}
           />
         )}
 
@@ -623,6 +874,109 @@ export default function App() {
           <ArchitectureSolutionView />
         )}
       </main>
+
+      {/* Kiosk PIN Unlock Modal */}
+      {showKioskPinModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold">
+                  <Lock className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-slate-900 text-base">Kiosk-sikkerhetslås</h3>
+                  <p className="text-xs text-slate-500">Beskytter seniormodus mot feilklikk</p>
+                </div>
+              </div>
+              <button
+                id="btn-close-pin-modal"
+                onClick={() => setShowKioskPinModal(false)}
+                className="text-slate-400 hover:text-slate-700 p-1.5 rounded-xl hover:bg-slate-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-sm text-slate-600 mb-5 leading-relaxed">
+              Seniormodus er låst for brukerens trygghet. Tast inn 4-sifret PIN-kode for helsepersonell eller pårørende for å åpne tekniske moduler.
+            </p>
+
+            <form onSubmit={handleUnlockKioskPin} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                  PIN-kode (4 siffer)
+                </label>
+                <div className="flex items-center justify-center gap-2 mb-2">
+                  <input
+                    id="input-kiosk-pin"
+                    type="password"
+                    maxLength={4}
+                    autoFocus
+                    value={kioskPinInput}
+                    onChange={(e) => {
+                      setKioskPinInput(e.target.value.replace(/\D/g, ''));
+                      setKioskPinError('');
+                    }}
+                    placeholder="••••"
+                    className="w-full text-center text-3xl font-mono tracking-widest py-3 px-4 rounded-2xl border-2 border-slate-300 focus:border-indigo-600 focus:outline-hidden bg-slate-50 font-bold"
+                  />
+                </div>
+                {kioskPinError && (
+                  <p className="text-xs font-bold text-rose-600 text-center">{kioskPinError}</p>
+                )}
+                <div className="flex justify-between items-center text-[11px] text-slate-500 mt-2 px-1">
+                  <span>Standard demokode: <strong>1234</strong></span>
+                  <button
+                    type="button"
+                    onClick={() => setKioskPinInput('1234')}
+                    className="text-indigo-600 hover:underline font-semibold"
+                  >
+                    Fyll inn 1234
+                  </button>
+                </div>
+              </div>
+
+              {/* Quick Number Buttons for Touch / Tablet */}
+              <div className="grid grid-cols-3 gap-2 pt-2">
+                {['1', '2', '3', '4', '5', '6', '7', '8', '9', 'C', '0', '⌫'].map((btn) => (
+                  <button
+                    key={btn}
+                    type="button"
+                    onClick={() => {
+                      if (btn === 'C') setKioskPinInput('');
+                      else if (btn === '⌫') setKioskPinInput(prev => prev.slice(0, -1));
+                      else if (kioskPinInput.length < 4) setKioskPinInput(prev => prev + btn);
+                    }}
+                    className="py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-800 font-bold text-lg transition-colors"
+                  >
+                    {btn}
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex items-center gap-3 pt-2">
+                <button
+                  type="button"
+                  id="btn-cancel-kiosk-pin"
+                  onClick={() => setShowKioskPinModal(false)}
+                  className="w-1/2 py-3 rounded-xl border border-slate-200 text-slate-700 font-bold text-sm hover:bg-slate-50"
+                >
+                  Avbryt
+                </button>
+                <button
+                  type="submit"
+                  id="btn-submit-kiosk-pin"
+                  className="w-1/2 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2"
+                >
+                  <Key className="w-4 h-4" />
+                  <span>Lås opp</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Telemetry Log Drawer (Collapsible) */}
       {showLogDrawer && (

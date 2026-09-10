@@ -99,3 +99,51 @@ export interface VisualAlert {
   targetTab?: 'senior' | 'storage' | 'health';
   dismissed?: boolean;
 }
+
+export type UserRole = 'senior' | 'relative' | 'nurse' | 'admin';
+
+export interface UserProfile {
+  id: string;
+  role: UserRole;
+  name: string;
+  title: string;
+  hprNumber?: string;
+  securityLevel: string; // f.eks. "BankID Nivå 4 / Buypass"
+  sessionExpires: string;
+}
+
+export interface ConsentItem {
+  id: string;
+  title: string;
+  description: string;
+  category: 'helse' | 'sikkerhet' | 'pårørende' | 'telemetri';
+  granted: boolean;
+  legalBasis: string; // f.eks. "GDPR Art. 6(1)(a) Samtykke" el. "Helsepersonelloven § 21"
+  dataRetentionDays: number;
+  lastUpdated: string;
+}
+
+export interface AuditLogEntry {
+  id: string;
+  timestamp: string;
+  actorName: string;
+  actorRole: UserRole;
+  actorHprNumber?: string;
+  action: 'READ' | 'EXPORT' | 'UPDATE' | 'DELETE' | 'EMERGENCY_OVERRIDE';
+  resource: 'MEDISINER' | 'VITALE_TEGN' | 'FALLRADAR_LOGG' | 'KONTAKTER' | 'SYSTEM_CONFIG';
+  justification: string;
+  ipAddress: string;
+  verified: boolean;
+}
+
+export interface SecurityStatus {
+  encryptionAtRest: boolean; // LUKS2 AES-XTS-256
+  encryptionInTransit: boolean; // TLS 1.3 + mTLS med HelseID
+  tpmAttestation: 'VERIFIED' | 'WARNING' | 'FAILED';
+  secureBootEnabled: boolean;
+  kioskPinLocked: boolean;
+  normenCompliancePercent: number; // e.g. 98%
+  tamperSensorStatus: 'OK_SEALED' | 'TAMPER_DETECTED';
+  offlineZeroLeakMode: boolean;
+}
+
