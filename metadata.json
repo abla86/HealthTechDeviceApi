@@ -1,0 +1,6 @@
+{
+  "name": "Velferdsteknologi & Maskinvareovervåking",
+  "description": "Konseptuell prototype og teknisk løsningsforslag for velferdsteknologi med lagringsslitasje-monitor (SD vs SSD), helsetelemetri og forenklet Seniormodus.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
