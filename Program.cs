@@ -3,6 +3,7 @@ using System.Text;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using System.Threading.RateLimiting;
+using HealthTechDeviceApi.Security;
 
 const long MaxDicomUploadBytes = 5 * 1024 * 1024;
 
@@ -27,6 +28,7 @@ builder.Services.AddRateLimiter(options =>
 builder.Services.AddSingleton<IDeviceRepository, InMemoryDeviceRepository>();
 builder.Services.AddSingleton<DeviceService>();
 builder.Services.AddSingleton<IDicomFileService, FoDicomFileService>();
+builder.Services.AddSingleton<CryptoArtifactService>();
 
 var connectionString = builder.Configuration.GetConnectionString("HealthTech")
     ?? "Data Source=healthtech.db";
@@ -235,6 +237,24 @@ app.MapGet("/dicom/admin/inspections", async (
     var records = await repository.GetRecentAsync(take ?? 25, cancellationToken);
     return Results.Ok(records);
 }).RequireRateLimiting("api-write");
+
+app.MapGet("/security/integrity-demo", (CryptoArtifactService crypto) =>
+{
+    var payload = new
+    {
+        artifact = "synthetic-dicom-manifest",
+        version = 1,
+        createdUtc = "2026-09-14T00:00:00Z"
+    };
+
+    return Results.Ok(crypto.SignAndVerify(payload));
+});
+
+app.MapGet("/security/encryption-demo", (CryptoArtifactService crypto) =>
+{
+    const string syntheticPayload = "Synthetic HealthTech portfolio artifact";
+    return Results.Ok(crypto.EncryptAndDecrypt(syntheticPayload));
+});
 
 app.Run();
 
