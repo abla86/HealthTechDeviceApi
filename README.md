@@ -11,6 +11,7 @@ The application uses simulated healthcare-technology data and contains no patien
 | Device monitoring | `frontend/` |
 | Python data quality | `tools/python-data-quality/` |
 | RAVENTA HMS + Security control center | `tools/raventa-control-center/` |
+| Control API | `backend/raventa_control.py` (`/controls`) |
 | API | `backend/` |
 | Run locally | [Run locally](#run-locally) |
 
@@ -18,17 +19,26 @@ The application uses simulated healthcare-technology data and contains no patien
 
 ### RAVENTA Control Center
 
-The historical RAVENTA prototype contributed a useful HMS + Security control-center concept. Its reusable implementation is now preserved under `tools/raventa-control-center/` rather than maintained as a separate flagship repository.
+The historical RAVENTA prototype contributed an HMS + Security control-record workflow. The reusable concept is now consolidated into this repository and exposed through the canonical FastAPI application.
 
-The module covers control registration, severity, lifecycle status, KPI overview and domain filtering. The lifecycle is represented as registration → risk → action → verification → closure.
+The control API supports:
 
-This is a portfolio/demo component. It does not claim regulatory compliance, clinical validation, production security, or suitability for operational safety decisions.
+- control registration
+- severity levels
+- lifecycle status
+- owner and due-date fields
+- domain/status filtering
+- create, read and patch operations
+- deterministic synthetic seed data
+- API tests for the lifecycle and missing-record behaviour
+
+The lifecycle is represented as registration → risk → action → verification → closure. The API is a portfolio/demo component and does not claim regulatory compliance, clinical validation, production security, or suitability for operational safety decisions.
 
 ## Verification
 
 [![CI](https://github.com/abla86/healthtech-dashboard/actions/workflows/ci.yml/badge.svg)](https://github.com/abla86/healthtech-dashboard/actions/workflows/ci.yml)
 
-The baseline CI compiles the Python backend and runs API smoke/integration checks covering health, device listing, create/read/delete behaviour, validation and missing-device handling.
+The repository contains baseline backend verification for the device API and consolidated control API. CI status must be checked from the actual workflow run before claiming a passing build.
 
 ## Features
 
@@ -39,14 +49,15 @@ The baseline CI compiles the Python backend and runs API smoke/integration check
 - Responsive frontend
 - Configurable CORS policy
 - Pydantic validation
-- Create, read and delete API operations
+- Create, read and delete device API operations
 - Interactive refresh and dashboard metrics
 - OpenAPI / Swagger documentation
 - Configurable frontend API endpoint
 - Explicit API health check before dashboard data loading
 - Safe text-based DOM rendering for returned device data
 - Frontend request timeout and response-shape validation
-- Consolidated HMS + Security control-center demonstration
+- Consolidated HMS + Security control API
+- RAVENTA-derived control-center module
 - Python healthcare-data quality tooling
 
 ## Technology Stack
@@ -58,6 +69,7 @@ The baseline CI compiles the Python backend and runs API smoke/integration check
 - Pydantic
 - Uvicorn
 - REST API
+- Standard-library datetime/enum support for control records
 
 ### Frontend
 
@@ -74,11 +86,15 @@ Use simulated or non-sensitive demonstration data only. Do not commit patient or
 
 ## Status
 
-Demonstration / learning project with automated backend baseline verification. Clinical validation and production readiness are not claimed.
+Demonstration / learning project with backend verification coverage. Clinical validation and production readiness are not claimed.
 
 ## Portfolio boundary
 
 HealthTech-related implementation belongs here. Workforce competence management remains a separate flagship where its domain-specific architecture warrants separation. Small generic engineering experiments belong in `AB-Engineering-Lab`.
+
+## Consolidation
+
+`RAVENTA` is now a legacy source repository. New HealthTech control-center work belongs here rather than in a second flagship repository.
 
 ## Change-control audit
 
