@@ -5,10 +5,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import Literal
 
+from raventa_control import router as control_router
+
 app = FastAPI(
     title="HealthTech Device API",
-    version="1.0.0",
-    description="REST API for monitoring simulated healthcare technology devices."
+    version="1.1.0",
+    description="REST API for monitoring simulated healthcare technology devices and control records."
 )
 
 configured_origins = [
@@ -22,7 +24,7 @@ app.add_middleware(
     allow_origins=configured_origins,
     allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
     allow_credentials=False,
-    allow_methods=["GET", "POST", "DELETE"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE"],
     allow_headers=["*"]
 )
 
@@ -46,12 +48,15 @@ devices = [
     Device(id=4, name="Medication Hub", type="Medication", status="Maintenance", battery=61),
 ]
 
+app.include_router(control_router)
+
 @app.get("/")
 def root():
     return {
         "service": "HealthTech Device API",
         "status": "running",
-        "docs": "/docs"
+        "docs": "/docs",
+        "modules": ["devices", "controls"]
     }
 
 @app.get("/health")
