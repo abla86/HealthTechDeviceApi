@@ -4,7 +4,7 @@ A healthcare-technology engineering project combining a C#/.NET REST API with a 
 
 ## Portfolio role
 
-This is a **combined platform unit**. The former standalone monitoring-dashboard capability is represented here because it complements the device API rather than adding a separate portfolio product. The separate `healthtech-dashboard` repository is retained as implementation history and should not be promoted as a second flagship project.
+This is a **combined platform unit**. The former standalone monitoring-dashboard capability is represented here because it complements the device API rather than adding a separate portfolio product. The former `healthtech-dashboard` repository is merged into `archive/healthtech-dashboard/` as implementation history and should not be promoted as a second flagship project.
 
 ## Implemented
 
