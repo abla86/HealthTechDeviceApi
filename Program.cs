@@ -14,6 +14,17 @@ builder.Services.AddOpenApi();
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 120,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+                AutoReplenishment = true
+            }));
+
     options.AddPolicy("api-write", context =>
         RateLimitPartition.GetFixedWindowLimiter(
             context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
@@ -39,6 +50,15 @@ builder.Services.AddScoped<IDicomMetadataRepository, EfDicomMetadataRepository>(
 
 var app = builder.Build();
 
+if (!app.Environment.IsDevelopment())
+{
+    var configuredApiKey = builder.Configuration["Security:ApiKey"];
+    if (string.IsNullOrWhiteSpace(configuredApiKey) || configuredApiKey.Length < 32)
+    {
+        throw new InvalidOperationException("Security:ApiKey must be configured with at least 32 characters outside Development.");
+    }
+}
+
 app.UseRateLimiter();
 
 using (var scope = app.Services.CreateScope())
@@ -52,7 +72,20 @@ app.Use(async (context, next) =>
     context.Response.Headers["X-Content-Type-Options"] = "nosniff";
     context.Response.Headers["X-Frame-Options"] = "DENY";
     context.Response.Headers["Referrer-Policy"] = "no-referrer";
+    context.Response.Headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()";
     context.Response.Headers["Cache-Control"] = "no-store";
+
+    var isPublicEndpoint =
+        context.Request.Path == "/" ||
+        context.Request.Path == "/health";
+
+    if (!app.Environment.IsDevelopment() && !isPublicEndpoint && !IsAuthorized(context.Request, builder.Configuration))
+    {
+        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+        await context.Response.WriteAsJsonAsync(new { message = "API authentication required." });
+        return;
+    }
+
     await next();
 });
 
