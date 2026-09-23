@@ -18,7 +18,7 @@ Never commit:
 
 ## Security controls
 
-The repository uses automated dependency monitoring and static analysis. Security-sensitive changes should be covered by automated tests and reviewed before merging to the default branch.
+The repository uses automated dependency monitoring, CodeQL analysis, dependency vulnerability checks, Docker verification and source-integrity checks. In non-Development environments the API fails closed unless a 32+ character API key is configured. Security-sensitive changes should be covered by automated tests and reviewed before merging to the default branch.
 
 ## Reporting a vulnerability
 
@@ -31,4 +31,7 @@ Do not publish exploitable security details in a public issue. Report suspected 
 - Keep secrets outside source control.
 - Avoid sensitive information in application logs.
 - Keep dependencies current.
+- Run the application container as a non-root user.
+- Keep production API endpoints authenticated and rate-limited.
+- Keep persistent application data on a dedicated writable volume.
 - Prefer secure defaults and explicit failure modes.
