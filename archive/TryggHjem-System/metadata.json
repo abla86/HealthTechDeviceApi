@@ -1,6 +1,0 @@
-{
-  "name": "Beredskap & TryggPårørende",
-  "description": "Velferdsteknologi-portal: Beredskap & Rutine for hjemmetjenesten og TryggPårørende for familie.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}
