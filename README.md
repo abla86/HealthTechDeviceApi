@@ -4,7 +4,7 @@ A healthcare-technology engineering project combining a C#/.NET REST API with a 
 
 ## Portfolio role
 
-This is a **combined platform unit**. The former standalone monitoring-dashboard capability is represented here because it complements the device API rather than adding a separate portfolio product. The former `healthtech-dashboard` repository is merged into `archive/healthtech-dashboard/` as implementation history and should not be promoted as a second flagship project.
+This is a **combined platform unit**. The former standalone monitoring-dashboard capability is represented here because it complements the device API rather than adding a separate portfolio product. Legacy dashboard implementations were removed from the active repository; the current repository contains only the maintained API, tests, documentation and supporting demo assets.
 
 ## Implemented
 
@@ -55,16 +55,16 @@ This repository is deliberately positioned as an application-engineering flagshi
 | Control | Implementation | Evidence |
 |---|---|---|
 | Input validation | Device validation and normalized status values | Automated service tests |
-| Request throttling | Fixed-window rate limit on write, DICOM inspection and admin endpoints | HTTP 429 on policy rejection |
+| Request throttling | Global fixed-window rate limit plus stricter write-operation limit | HTTP 429 on policy rejection |
 | Payload boundary | DICOM inspection rejects non-DICOM media and limits bodies to 5 MiB, including streamed-body enforcement | API implementation + negative paths |
-| Administrative access | API-key protected inspection history using constant-time comparison | /dicom/admin/inspections |
-| Safe response headers | nosniff, DENY, no-referrer and no-store | HTTP middleware |
+| Production API access | API-key authentication for non-public endpoints outside Development, with constant-time comparison | API boundary middleware |
+| Safe response headers | nosniff, DENY, no-referrer, restricted browser permissions and no-store | HTTP middleware |
 | DICOM boundary | Synthetic/de-identified data, bounded inspection and allow-listed metadata output | DICOM service/tests |
 | Digital signatures | ECDSA P-256 signature and verification over a synthetic artifact manifest | /security/integrity-demo + xUnit |
 | Encryption | AES-256-GCM authenticated encryption/decryption | /security/encryption-demo + xUnit |
 | Auditability | Security-relevant DICOM outcomes are recorded without storing credentials | Metadata repository/audit events |
 | Supply-chain controls | CodeQL and Dependabot | GitHub configuration |
-| Secret hygiene | API key is configuration-driven and empty by default; no credential is committed | configuration/environment |
+| Secret hygiene | API key is configuration-driven; production startup fails closed unless a 32+ character key is configured | configuration/environment |
 
 The security model deliberately stays within the project's scope. A production identity platform, production key-management infrastructure, clinical validation and complete threat model are not claimed.
 
@@ -88,7 +88,7 @@ CI builds the API and runs the automated test suite, with Docker verification, C
 
 ```powershell
 docker build -t healthtech-device-api:latest .
-docker run --rm -p 8080:8080 healthtech-device-api:latest
+docker run --rm -p 8080:8080 -e Security__ApiKey="<32+ character secret>" -v healthtech-data:/app/data healthtech-device-api:latest
 ```
 
 ## Data safety
