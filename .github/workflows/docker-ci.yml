@@ -5,6 +5,7 @@ on:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -12,17 +13,23 @@ permissions:
 jobs:
   docker-build:
     name: Build Docker Image
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Build Docker image
         run: docker build -t healthtech-device-api:ci .
 
       - name: Start container
-        run: docker run -d -p 8080:8080 --name healthtech-device-api healthtech-device-api:ci
+        run: |
+          API_KEY="$(openssl rand -hex 32)"
+          echo "API_KEY=$API_KEY" >> "$GITHUB_ENV"
+          docker run -d -p 8080:8080 --name healthtech-device-api -e Security__ApiKey="$API_KEY" healthtech-device-api:ci
 
       - name: Wait for API
         run: sleep 5
@@ -30,8 +37,11 @@ jobs:
       - name: Verify health endpoint
         run: curl --fail http://localhost:8080/health
 
-      - name: Verify statistics endpoint
-        run: curl --fail http://localhost:8080/devices/stats
+      - name: Verify protected endpoint
+        run: test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/devices/stats)" = "401"
+
+      - name: Verify authenticated endpoint
+        run: curl --fail -H "X-API-Key: $API_KEY" http://localhost:8080/devices/stats
 
       - name: Stop container
         if: always()
