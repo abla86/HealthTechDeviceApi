@@ -1,6 +1,8 @@
 using System.Net;
 using System.Net.Http.Json;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.Configuration;
 using Xunit;
 
 namespace HealthTechDeviceApi.Tests;
@@ -229,5 +231,58 @@ public sealed class ApiTests
         var response = await _client.GetAsync("/dicom/admin/inspections");
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Production_ProtectedEndpoint_RequiresApiKey()
+    {
+        using var factory = CreateProductionFactory("production-test-key-with-at-least-32-characters");
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/devices");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Production_ProtectedEndpoint_AllowsConfiguredApiKey()
+    {
+        const string apiKey = "production-test-key-with-at-least-32-characters";
+        using var factory = CreateProductionFactory(apiKey);
+        using var client = factory.CreateClient();
+
+        client.DefaultRequestHeaders.Add("X-API-Key", apiKey);
+
+        var response = await client.GetAsync("/devices");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Production_MissingApiKeyConfiguration_FailsClosed()
+    {
+        using var factory = CreateProductionFactory(null);
+
+        var exception = await Assert.ThrowsAnyAsync<Exception>(
+            async () => await factory.CreateClient().GetAsync("/health"));
+
+        Assert.Contains("Security:ApiKey", exception.ToString());
+    }
+
+    private static WebApplicationFactory<Program> CreateProductionFactory(string? apiKey)
+    {
+        return new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        {
+            builder.UseEnvironment("Production");
+            builder.ConfigureAppConfiguration((_, configuration) =>
+            {
+                var values = new Dictionary<string, string?>
+                {
+                    ["Security:ApiKey"] = apiKey
+                };
+
+                configuration.AddInMemoryCollection(values);
+            });
+        });
     }
 }
