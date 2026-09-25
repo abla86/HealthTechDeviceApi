@@ -13,8 +13,11 @@ permissions:
 jobs:
   source-integrity:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
       - name: Reject empty source files and implementation placeholders
         shell: bash
         run: |
@@ -22,6 +25,9 @@ jobs:
           failed=0
           while IFS= read -r -d '' file; do
             [ -s "$file" ] || { echo "EMPTY SOURCE: $file"; failed=1; }
-            if grep -EIn '^[[:space:]]*(//|#|/\*|<!--)[[:space:]]*(TODO|FIXME|XXX|HACK|NOT IMPLEMENTED|COMING SOON|PLACEHOLDER)\b' "$file" >/dev/null 2>&1; then echo "PLACEHOLDER SOURCE: $file"; failed=1; fi
+            if grep -EIn '^[[:space:]]*(//|#|/\*|<!--)[[:space:]]*(TODO|FIXME|XXX|HACK|NOT IMPLEMENTED|COMING SOON|PLACEHOLDER)\b' "$file" >/dev/null 2>&1; then
+              echo "PLACEHOLDER SOURCE: $file"
+              failed=1
+            fi
           done < <(find . -type f -not -path './archive/*' \( -name '*.cs' -o -name '*.csx' -o -name '*.js' -o -name '*.jsx' -o -name '*.ts' -o -name '*.tsx' -o -name '*.py' -o -name '*.html' -o -name '*.css' -o -name '*.sql' -o -name '*.sh' -o -name '*.ps1' \) -not -path './.git/*' -print0)
           exit "$failed"
