@@ -245,6 +245,20 @@ public sealed class ApiTests
     }
 
     [Fact]
+    public async Task Production_ProtectedEndpoint_RejectsWrongApiKey()
+    {
+        const string apiKey = "production-test-key-with-at-least-32-characters";
+        using var factory = CreateProductionFactory(apiKey);
+        using var client = factory.CreateClient();
+
+        client.DefaultRequestHeaders.Add("X-API-Key", "wrong-key");
+
+        var response = await client.GetAsync("/devices");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Production_ProtectedEndpoint_AllowsConfiguredApiKey()
     {
         const string apiKey = "production-test-key-with-at-least-32-characters";
