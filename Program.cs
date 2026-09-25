@@ -251,6 +251,18 @@ app.MapPost("/dicom/inspect", async (
         await repository.AddAuditEventAsync("dicom.inspect", "invalid-dicom", cancellationToken);
         return Results.BadRequest(new { message = "The request body is not a readable DICOM file." });
     }
+    catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+    {
+        throw;
+    }
+    catch (Exception)
+    {
+        await repository.AddAuditEventAsync("dicom.inspect", "processing-error", CancellationToken.None);
+        return Results.Problem(
+            statusCode: StatusCodes.Status500InternalServerError,
+            title: "DICOM inspection failed.",
+            detail: "The DICOM document could not be processed.");
+    }
 }).RequireRateLimiting("api-write");
 
 app.MapGet("/dicom/admin/inspections", async (
