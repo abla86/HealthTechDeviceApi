@@ -199,13 +199,13 @@ app.MapPost("/dicom/inspect", async (
             "application/dicom",
             StringComparison.OrdinalIgnoreCase) != true)
     {
-        await repository.AddAuditEventAsync("dicom.inspect", "unsupported-media-type", cancellationToken);
+        await TryAuditAsync(repository, "dicom.inspect", "unsupported-media-type", cancellationToken);
         return Results.StatusCode(StatusCodes.Status415UnsupportedMediaType);
     }
 
     if (request.ContentLength is > MaxDicomUploadBytes)
     {
-        await repository.AddAuditEventAsync("dicom.inspect", "payload-too-large", cancellationToken);
+        await TryAuditAsync(repository, "dicom.inspect", "payload-too-large", cancellationToken);
         return Results.StatusCode(StatusCodes.Status413PayloadTooLarge);
     }
 
@@ -233,7 +233,7 @@ app.MapPost("/dicom/inspect", async (
 
     if (total == 0)
     {
-        await repository.AddAuditEventAsync("dicom.inspect", "empty-body", cancellationToken);
+        await TryAuditAsync(repository, "dicom.inspect", "empty-body", cancellationToken);
         return Results.BadRequest(new { message = "A DICOM request body is required." });
     }
 
@@ -242,13 +242,20 @@ app.MapPost("/dicom/inspect", async (
     try
     {
         var inspection = service.Inspect(buffer);
-        await repository.AddInspectionAsync(inspection, cancellationToken);
-        await repository.AddAuditEventAsync("dicom.inspect", "success", cancellationToken);
+        try
+        {
+            await repository.AddInspectionAsync(inspection, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        await TryAuditAsync(repository, "dicom.inspect", "success", cancellationToken);
         return Results.Ok(inspection);
     }
     catch (FellowOakDicom.DicomFileException)
     {
-        await repository.AddAuditEventAsync("dicom.inspect", "invalid-dicom", cancellationToken);
+        await TryAuditAsync(repository, "dicom.inspect", "invalid-dicom", cancellationToken);
         return Results.BadRequest(new { message = "The request body is not a readable DICOM file." });
     }
     catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -257,7 +264,7 @@ app.MapPost("/dicom/inspect", async (
     }
     catch (Exception)
     {
-        await repository.AddAuditEventAsync("dicom.inspect", "processing-error", CancellationToken.None);
+        await TryAuditAsync(repository, "dicom.inspect", "processing-error", CancellationToken.None);
         return Results.Problem(
             statusCode: StatusCodes.Status500InternalServerError,
             title: "DICOM inspection failed.",
@@ -274,11 +281,11 @@ app.MapGet("/dicom/admin/inspections", async (
 {
     if (!IsAuthorized(request, configuration))
     {
-        await repository.AddAuditEventAsync("dicom.admin.inspections", "unauthorized", cancellationToken);
+        await TryAuditAsync(repository, "dicom.admin.inspections", "unauthorized", cancellationToken);
         return Results.Unauthorized();
     }
 
-    await repository.AddAuditEventAsync("dicom.admin.inspections", "success", cancellationToken);
+    await TryAuditAsync(repository, "dicom.admin.inspections", "success", cancellationToken);
     var records = await repository.GetRecentAsync(take ?? 25, cancellationToken);
     return Results.Ok(records);
 }).RequireRateLimiting("api-write");
@@ -302,6 +309,22 @@ app.MapGet("/security/encryption-demo", (CryptoArtifactService crypto) =>
 });
 
 app.Run();
+
+static async Task TryAuditAsync(IDicomMetadataRepository repository, string eventType, string outcome, CancellationToken cancellationToken)
+{
+    try
+    {
+        await repository.AddAuditEventAsync(eventType, outcome, cancellationToken);
+    }
+    catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+    {
+        throw;
+    }
+    catch
+    {
+        // Audit persistence must never turn a request into an application failure.
+    }
+}
 
 static bool IsAuthorized(HttpRequest request, IConfiguration configuration)
 {
