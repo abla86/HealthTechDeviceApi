@@ -129,6 +129,11 @@ app.MapGet("/devices/stats", (DeviceService service) =>
 
 app.MapGet("/devices/{id:int}", (int id, DeviceService service) =>
 {
+    if (id <= 0)
+    {
+        return Results.BadRequest(new { message = "Device ID must be greater than zero." });
+    }
+
     var device = service.GetDevice(id);
 
     return device is null
