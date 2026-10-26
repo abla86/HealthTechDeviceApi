@@ -42,11 +42,11 @@ The service never accepts or returns real patient information. These endpoints e
 
 ## Engineering evidence
 
-This repository is deliberately positioned as an application-engineering flagship: the strongest evidence is the combination of a typed .NET API, layered domain boundaries, validation, synthetic DICOM handling, persistence, automated tests, cryptography demonstrations, containerization and security controls. The browser dashboard is supporting evidence, not a separate product.
+This repository is a demonstration API. Device CRUD currently uses an in-memory repository and device changes are lost when the process restarts. EF Core/SQLite persistence is used for DICOM metadata and security audit events only. The project demonstrates validation, synthetic DICOM handling, tests, cryptography examples, containerization and security controls; it is not a production medical-device platform. The browser dashboard is supporting evidence, not a separate product.
 
 ## Technology breadth demonstrated
 
-**C# / .NET** · ASP.NET Core · Minimal APIs · REST · OpenAPI · dependency injection · layered architecture · EF Core / SQLite · xUnit · Docker · GitHub Actions · CodeQL · Dependabot · DICOM/fo-dicom · HTML5 · CSS3 · JavaScript · Fetch API · ECDSA · AES-GCM
+**C# / .NET** · ASP.NET Core · Minimal APIs · REST · OpenAPI · dependency injection · layered architecture · EF Core / SQLite (DICOM metadata and audit events; device CRUD is in-memory) · xUnit · Docker · GitHub Actions · CodeQL · Dependabot · DICOM/fo-dicom · HTML5 · CSS3 · JavaScript · Fetch API · ECDSA · AES-GCM
 
 ## Application security
 
